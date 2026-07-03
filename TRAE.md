@@ -7,10 +7,10 @@
 
 ## 1. 项目概述
 
-- **项目名称**：job-cosine.（注意远程仓库名末尾有一个点 `.`）
+- **项目名称**：job-cosine
 - **项目性质**：毕业设计 / 求职数据分析平台
 - **一句话描述**：采集招聘网站（目前 51job）Python 岗位数据 → 清洗入库 → 多维度分析（薪资、学历、经验、地区、技能） → 聚类建模 + 薪资预测 → AI Agent 给出求职建议，并用 Flask 网页端全部展示。
-- **远程仓库**：`https://github.com/cloudy-one1/job-cosine..git`（**末尾有个点，remote URL 千万别漏**，否则 push 失败）
+- **远程仓库**：`https://github.com/cloudy-one1/job-cosine.git`
 - **答辩演示分支**：`main`（受保护，禁止直接 push，必须走 PR 合并）
 - **日常开发分支**：`develop`（新对话默认在 develop 上写代码）
 
@@ -160,13 +160,13 @@ chore: .gitignore 新增 .qoder/ 排除 Trae 知识库缓存
 security: 加 CSRF 保护全表单 + /collect 限流 5/h + COLLECT_TOKEN
 ```
 
-### 5.3 远程仓库大坑 ⚠️
+### 5.3 远程仓库 URL 注意 ⚠️
 
-- 仓库名是 **`job-cosine.`**（末尾带一个点！）
-- Remote URL 必须是：`https://github.com/cloudy-one1/job-cosine..git`（末尾两个点：一个是仓库名的点，一个是 `.git` 之前的仓库名末尾点，总共**两个点连在一起**）
-- 如果 push 报 `repository not found`，99% 是 remote URL 末尾点漏了，修：
+- 仓库名是 **`job-cosine`**（不带末尾点，2026-07-03 已从带点名改名）
+- 当前标准 Remote URL：`https://github.com/cloudy-one1/job-cosine.git`
+- 如果 push 报 `repository not found` 或出现 `This repository moved` 警告，99% 是 remote URL 还是旧名（末尾带点），执行修正：
   ```bash
-  git remote set-url origin https://github.com/cloudy-one1/job-cosine..git
+  git remote set-url origin https://github.com/cloudy-one1/job-cosine.git
   ```
 
 ---
@@ -217,9 +217,12 @@ security: 加 CSRF 保护全表单 + /collect 限流 5/h + COLLECT_TOKEN
 - **原因**：未校验输入类型，直接 `int(page)` 抛 ValueError
 - **解决方案**：`tests/test_app_routes.py` 有回归测试；`app.py` 所有 URL 数值参数统一做 `isdecimal()` + 正整数校验，越界→400
 
-### 坑 7：Push 到 GitHub 报 `repository not found`
-- **原因**：远程仓库名末尾是 `job-cosine.`（有个点），URL 里要写 `.../job-cosine..git`（两个点连着）
-- **解决方案**：`git remote set-url origin https://github.com/cloudy-one1/job-cosine..git`
+### 坑 7：Push 到 GitHub 报 `repository not found` 或 `This repository moved`
+- **原因**：仓库曾用名是 `job-cosine.`（末尾带点），2026-07-03 已改为 `job-cosine`（不带点）；旧 URL 仍有重定向但每次都有警告，长期会失效）
+- **解决方案**：统一把本地 remote 更新为新 URL：
+  ```bash
+  git remote set-url origin https://github.com/cloudy-one1/job-cosine.git
+  ```
 
 ---
 
