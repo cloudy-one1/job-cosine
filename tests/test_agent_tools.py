@@ -21,7 +21,7 @@ def temp_db(monkeypatch):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS data (
             post TEXT, address TEXT, salary_min REAL, salary_max REAL,
-            edu TEXT, exper TEXT
+            edu TEXT, exper TEXT, content TEXT DEFAULT ''
         )
     """)
     test_data = [

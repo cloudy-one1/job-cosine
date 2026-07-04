@@ -1,58 +1,319 @@
 {% extends "base.html" %}
 {% block content %}
 
+<style>
+    /* ---------- tab bar ---------- */
+    .tab-bar {
+        display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 24px;
+    }
+    .tab-btn {
+        font-family: 'Noto Sans SC', sans-serif; font-size: 14px; font-weight: 600;
+        padding: 10px 24px; border: none; border-bottom: 3px solid transparent;
+        background: transparent; color: var(--ink-soft); cursor: pointer;
+        transition: .15s ease; margin-bottom: -2px;
+    }
+    .tab-btn:hover { color: var(--ink); }
+    .tab-btn.active {
+        color: var(--teal); border-bottom-color: var(--teal);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ---------- compare grid ---------- */
+    .compare-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;
+    }
+    .compare-card {
+        background: var(--card); border: 1px solid var(--line); border-radius: 3px;
+        padding: 20px; position: relative;
+    }
+    .compare-card .card-label {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .06em;
+        color: var(--ink-soft); text-transform: uppercase; margin-bottom: 8px;
+    }
+    .compare-card .card-value {
+        font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 20px;
+        color: var(--ink); margin-bottom: 14px;
+    }
+    .compare-stat { display: flex; justify-content: space-between; padding: 6px 0;
+        border-bottom: 1px solid var(--line); font-size: 13px; }
+    .compare-stat .stat-label { color: var(--ink-soft); }
+    .compare-stat .stat-value { font-weight: 600; }
+    .skill-tag {
+        display: inline-block; padding: 4px 12px; margin: 3px; border-radius: 12px;
+        background: var(--teal-soft); color: var(--teal); font-size: 13px; font-weight: 500;
+    }
+    .skill-tag .skill-count { color: var(--ink-soft); font-size: 11px; margin-left: 4px; }
+</style>
+
 <div style="display:flex; align-items:center; gap:18px; margin-bottom:6px;">
     <div class="stamp">COSINE</div>
     <div>
         <p class="eyebrow" style="margin-bottom:2px;">案卷 NO. 05 · 求职建议</p>
-        <h2 style="margin:0;">求职建议 Agent</h2>
+        <h2 style="margin:0;">求职建议工具箱</h2>
     </div>
 </div>
 <p style="color:var(--ink-soft); max-width:560px; margin-bottom:24px;">
-    描述你的技能或想了解的方向,获取基于真实招聘数据的求职建议。
+    综合 Agent 为你分析求职方向，也可直接使用城市对比和技能提取工具。
 </p>
 
-<div class="card" data-no="提问">
-    <form method="post" action="/advice">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-            <label>描述一下你的技能/想了解的方向</label>
-            <input type="text" class="form-control" name="question"
-                   placeholder="比如:我会Python爬虫,想了解一下这个方向的就业行情"
-                   value="{{ question or '' }}">
+<!-- ====== Tab 切换栏 ====== -->
+<div class="tab-bar">
+    <button class="tab-btn {% if active_tab == 'agent' %}active{% endif %}" onclick="switchTab('agent')">
+        综合建议 Agent
+    </button>
+    <button class="tab-btn {% if active_tab == 'compare' %}active{% endif %}" onclick="switchTab('compare')">
+        城市/类别对比
+    </button>
+    <button class="tab-btn {% if active_tab == 'skills' %}active{% endif %}" onclick="switchTab('skills')">
+        技能关键词提取
+    </button>
+</div>
+
+<!-- ====== Tab 1: 综合建议 Agent ====== -->
+<div id="tab-agent" class="tab-panel {% if active_tab == 'agent' %}active{% endif %}">
+
+    <div class="card" data-no="提问">
+        <form method="post" action="/advice">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tool" value="agent">
+            <div class="form-group">
+                <label>描述一下你的技能 / 想了解的方向</label>
+                <input type="text" class="form-control" name="question"
+                       placeholder="比如：我会Python爬虫，想了解一下这个方向的就业行情"
+                       value="{{ question or '' }}">
+            </div>
+            <button type="submit" class="btn btn-info">向 Agent 提问</button>
+        </form>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" style="margin-top:20px;">{{ error }}</div>
+    {% endif %}
+
+    {% if answer %}
+    <div class="card" data-no="最终回答" style="margin-top:20px; border-color:var(--teal);">
+        {{ answer }}
+    </div>
+
+    <div class="card" data-no="处理记录" style="margin-top:20px;">
+        <h4 style="font-size:15px; margin-bottom:14px;">思考过程（AI协作过程展示）</h4>
+        {% for step in trace %}
+        <div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line);">
+            <div class="mono" style="color:var(--brass); font-size:12px; flex-shrink:0; width:40px;">#{{ step.step }}</div>
+            <div style="font-size:13.5px; line-height:1.7;">
+                {% if step.type == 'action' %}
+                    调用工具 <span class="mono" style="color:var(--teal);">{{ step.tool }}</span>
+                    参数 <span class="mono">{{ step.input }}</span><br>
+                    <span style="color:var(--ink-soft);">返回: {{ step.observation }}</span>
+                {% elif step.type == 'final' %}
+                    给出最终答案: {{ step.content }}
+                {% else %}
+                    <span style="color:var(--ink-soft);">(格式未识别的原始输出): {{ step.raw }}</span>
+                {% endif %}
+            </div>
         </div>
-        <button type="submit" class="btn btn-info">向 Agent 提问</button>
-    </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 </div>
 
-{% if error %}
-<div class="alert alert-danger" style="margin-top:20px;">{{ error }}</div>
-{% endif %}
+<!-- ====== Tab 2: 城市/类别对比 ====== -->
+<div id="tab-compare" class="tab-panel {% if active_tab == 'compare' %}active{% endif %}">
 
-{% if answer %}
-<div class="card" data-no="最终回答" style="margin-top:20px; border-color:var(--teal);">
-    {{ answer }}
-</div>
+    <div class="card" data-no="城市/类别对比">
+        <form method="post" action="/advice">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tool" value="compare">
 
-<div class="card" data-no="处理记录" style="margin-top:20px;">
-    <h4 style="font-size:15px; margin-bottom:14px;">思考过程(AI协作过程展示)</h4>
-    {% for step in trace %}
-    <div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line);">
-        <div class="mono" style="color:var(--brass); font-size:12px; flex-shrink:0; width:40px;">#{{ step.step }}</div>
-        <div style="font-size:13.5px; line-height:1.7;">
-            {% if step.type == 'action' %}
-                调用工具 <span class="mono" style="color:var(--teal);">{{ step.tool }}</span>
-                参数 <span class="mono">{{ step.input }}</span><br>
-                <span style="color:var(--ink-soft);">返回: {{ step.observation }}</span>
-            {% elif step.type == 'final' %}
-                给出最终答案: {{ step.content }}
-            {% else %}
-                <span style="color:var(--ink-soft);">(格式未识别的原始输出): {{ step.raw }}</span>
-            {% endif %}
+            <div class="form-group">
+                <label>对比维度</label>
+                <select class="form-control" name="dim_type">
+                    <option value="city" {% if compare_dim_type == 'city' %}selected{% endif %}>按城市</option>
+                    <option value="category" {% if compare_dim_type == 'category' %}selected{% endif %}>按职位类别</option>
+                </select>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group">
+                    <label>对比项 A</label>
+                    <input type="text" class="form-control" name="a"
+                           placeholder="例如：北京 或 后端开发"
+                           value="{{ compare_a or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>对比项 B</label>
+                    <input type="text" class="form-control" name="b"
+                           placeholder="例如：上海 或 Web开发"
+                           value="{{ compare_b or '' }}">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-info">开始对比</button>
+        </form>
+    </div>
+
+    {% if compare_error %}
+    <div class="alert alert-danger" style="margin-top:20px;">{{ compare_error }}</div>
+    {% endif %}
+
+    {% if compare_result %}
+    <div class="compare-grid">
+        <!-- A 侧 -->
+        <div class="compare-card">
+            <div class="card-label">对比项 A</div>
+            <div class="card-value">{{ compare_result.a.value }}</div>
+            <div class="compare-stat">
+                <span class="stat-label">职位数量</span>
+                <span class="stat-value">{{ compare_result.a.count }} 个</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">平均薪资</span>
+                <span class="stat-value">{{ compare_result.a.avg_salary_k }}k</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">最低薪资</span>
+                <span class="stat-value">{{ compare_result.a.min_salary_k }}k</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">最高薪资</span>
+                <span class="stat-value">{{ compare_result.a.max_salary_k }}k</span>
+            </div>
+            <div class="compare-stat" style="flex-direction:column; gap:4px;">
+                <span class="stat-label">Top 学历要求</span>
+                <span class="stat-value" style="font-weight:400;">
+                    {% for e, c in compare_result.a.top_edu %}
+                        {{ e }}({{ c }}){% if not loop.last %}、{% endif %}
+                    {% else %}
+                        无数据
+                    {% endfor %}
+                </span>
+            </div>
+            <div class="compare-stat" style="flex-direction:column; gap:4px; border:none;">
+                <span class="stat-label">Top 经验要求</span>
+                <span class="stat-value" style="font-weight:400;">
+                    {% for e, c in compare_result.a.top_exper %}
+                        {{ e }}({{ c }}){% if not loop.last %}、{% endif %}
+                    {% else %}
+                        无数据
+                    {% endfor %}
+                </span>
+            </div>
+        </div>
+
+        <!-- B 侧 -->
+        <div class="compare-card">
+            <div class="card-label">对比项 B</div>
+            <div class="card-value">{{ compare_result.b.value }}</div>
+            <div class="compare-stat">
+                <span class="stat-label">职位数量</span>
+                <span class="stat-value">{{ compare_result.b.count }} 个</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">平均薪资</span>
+                <span class="stat-value">{{ compare_result.b.avg_salary_k }}k</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">最低薪资</span>
+                <span class="stat-value">{{ compare_result.b.min_salary_k }}k</span>
+            </div>
+            <div class="compare-stat">
+                <span class="stat-label">最高薪资</span>
+                <span class="stat-value">{{ compare_result.b.max_salary_k }}k</span>
+            </div>
+            <div class="compare-stat" style="flex-direction:column; gap:4px;">
+                <span class="stat-label">Top 学历要求</span>
+                <span class="stat-value" style="font-weight:400;">
+                    {% for e, c in compare_result.b.top_edu %}
+                        {{ e }}({{ c }}){% if not loop.last %}、{% endif %}
+                    {% else %}
+                        无数据
+                    {% endfor %}
+                </span>
+            </div>
+            <div class="compare-stat" style="flex-direction:column; gap:4px; border:none;">
+                <span class="stat-label">Top 经验要求</span>
+                <span class="stat-value" style="font-weight:400;">
+                    {% for e, c in compare_result.b.top_exper %}
+                        {{ e }}({{ c }}){% if not loop.last %}、{% endif %}
+                    {% else %}
+                        无数据
+                    {% endfor %}
+                </span>
+            </div>
         </div>
     </div>
-    {% endfor %}
+    {% endif %}
+
 </div>
-{% endif %}
+
+<!-- ====== Tab 3: 技能关键词提取 ====== -->
+<div id="tab-skills" class="tab-panel {% if active_tab == 'skills' %}active{% endif %}">
+
+    <div class="card" data-no="技能关键词提取">
+        <form method="post" action="/advice">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tool" value="skills">
+
+            <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px;">
+                <div class="form-group">
+                    <label>职位关键词（可选，留空则分析全部职位）</label>
+                    <input type="text" class="form-control" name="keyword"
+                           placeholder="例如：Python 或 爬虫"
+                           value="{{ skills_keyword or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>返回前 N 个高频词</label>
+                    <input type="number" class="form-control" name="top_n"
+                           min="1" max="30" value="{{ skills_top_n or 15 }}">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-info">提取技能词</button>
+        </form>
+    </div>
+
+    {% if skills_error %}
+    <div class="alert alert-danger" style="margin-top:20px;">{{ skills_error }}</div>
+    {% endif %}
+
+    {% if skills_result %}
+    <div class="card" data-no="提取结果" style="margin-top:20px;">
+        <p style="margin-bottom:10px; color:var(--ink-soft); font-size:14px;">
+            关键词「{{ skills_result.keyword }}」下共 <strong>{{ skills_result.total_jobs }}</strong> 个职位，高频技能词如下：
+        </p>
+        {% if skills_result.skills %}
+        <div style="line-height:2.2;">
+            {% for s in skills_result.skills %}
+            <span class="skill-tag">{{ s.skill }}<span class="skill-count">{{ s.count }}</span></span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--ink-soft);">{{ skills_result.message or '未提取到技能词' }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+function switchTab(name) {
+    // 更新 tab 按钮
+    document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    // 更新面板
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+
+    // 激活选中的按钮和面板
+    var btns = document.querySelectorAll('.tab-btn');
+    for (var i = 0; i < btns.length; i++) {
+        if (btns[i].textContent.trim().indexOf(name === 'agent' ? '综合建议' : name === 'compare' ? '城市' : '技能') === 0) {
+            btns[i].classList.add('active');
+            break;
+        }
+    }
+    document.getElementById('tab-' + name).classList.add('active');
+}
+</script>
 
 {% endblock %}
