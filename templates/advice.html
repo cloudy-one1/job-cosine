@@ -59,13 +59,13 @@
 
 <!-- ====== Tab 切换栏 ====== -->
 <div class="tab-bar">
-    <button class="tab-btn {% if active_tab == 'agent' %}active{% endif %}" onclick="switchTab('agent')">
+    <button class="tab-btn {% if active_tab == 'agent' %}active{% endif %}" data-tab="agent" onclick="switchTab('agent')">
         综合建议 Agent
     </button>
-    <button class="tab-btn {% if active_tab == 'compare' %}active{% endif %}" onclick="switchTab('compare')">
+    <button class="tab-btn {% if active_tab == 'compare' %}active{% endif %}" data-tab="compare" onclick="switchTab('compare')">
         城市/类别对比
     </button>
-    <button class="tab-btn {% if active_tab == 'skills' %}active{% endif %}" onclick="switchTab('skills')">
+    <button class="tab-btn {% if active_tab == 'skills' %}active{% endif %}" data-tab="skills" onclick="switchTab('skills')">
         技能关键词提取
     </button>
 </div>
@@ -305,13 +305,7 @@ function switchTab(name) {
     document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
 
     // 激活选中的按钮和面板
-    var btns = document.querySelectorAll('.tab-btn');
-    for (var i = 0; i < btns.length; i++) {
-        if (btns[i].textContent.trim().indexOf(name === 'agent' ? '综合建议' : name === 'compare' ? '城市' : '技能') === 0) {
-            btns[i].classList.add('active');
-            break;
-        }
-    }
+    document.querySelector('.tab-btn[data-tab="' + name + '"]').classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
 }
 </script>
