@@ -257,17 +257,25 @@ def chart():
     import analysis.xueli as xueli
     import analysis.jinyan as jinyan
     import analysis.region as region
+    import analysis.cross as cross
     xz = xinzi.xinzi()
     xl = xueli.xuelifun()
     jy = jinyan.jinyanfun()
     city_data = region.regionfun()
-    return render_template('h.html', xz=xz, xl=xl, jy=jy, city_data=city_data)
+    cross_exper = cross.salary_vs_exper()
+    cross_edu = cross.salary_vs_edu()
+    return render_template('h.html', xz=xz, xl=xl, jy=jy, city_data=city_data,
+                           cross_exper=cross_exper, cross_edu=cross_edu)
 
 
 def _safe_model_metrics(mc):
     """当模型未训练时,返回安全的默认指标值,避免模板渲染崩溃。
-    模板里使用 model_r2 / model_old_r2 / model_mae / baseline_mae 这4个键。"""
-    defaults = {'model_r2': 0, 'model_old_r2': 0, 'model_mae': 0, 'baseline_mae': 0}
+    模板里使用 model_r2 / model_old_r2 / model_mae / baseline_mae /
+    model_rf_r2 / model_rf_mae 这6个键。"""
+    defaults = {
+        'model_r2': 0, 'model_old_r2': 0, 'model_mae': 0,
+        'baseline_mae': 0, 'model_rf_r2': 0, 'model_rf_mae': 0,
+    }
     if mc is None:
         return defaults
     return {
@@ -275,6 +283,8 @@ def _safe_model_metrics(mc):
         'model_old_r2': mc.get('old_r2', 0),
         'model_mae': mc.get('mae', 0),
         'baseline_mae': mc.get('baseline_mae', 0),
+        'model_rf_r2': mc.get('rf_r2', 0),
+        'model_rf_mae': mc.get('rf_mae', 0),
     }
 
 

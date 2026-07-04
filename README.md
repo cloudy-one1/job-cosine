@@ -10,7 +10,7 @@
 | 数据清洗 | 薪资解析、地址去重 | 正则 + 规则引擎 |
 | 描述性统计 | 薪资/学历/经验/城市分布 | Pandas + SQLite |
 | 职位聚类 | 自动发现职位类别结构 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
-| 薪资预测 | 多维特征线性回归 | Scikit-Learn + OneHotEncoder |
+| 薪资预测 | 多维特征回归(线性+随机森林三模型对比) | Scikit-Learn + OneHotEncoder + RandomForest |
 | AI Agent | 自然语言交互式数据分析 | 手写 ReAct 推理循环 + LLM 工具调用 |
 | Docker 部署 | 一键容器化运行 | Docker + docker-compose |
 
@@ -58,30 +58,33 @@ project1/
 │   ├── xueli.py                 — 学历分布统计
 │   ├── jinyan.py                — 经验分布统计
 │   ├── region.py                — 城市分布统计 (含 extract_city 共享工具)
+│   ├── cross.py                 — 交叉分析 (薪资 vs 经验/学历)
 │   └── jobtitle.py              — 职位标题规则分类
 │
 ├── modeling/                 # 模型层：机器学习
 │   ├── job_clustering.py        — KMeans 无监督聚类 (自动选择最佳 k)
-│   ├── salary_predict.py        — 线性回归薪资预测 (基线 vs 全特征对比)
+│   ├── salary_predict.py        — 薪资预测 (线性回归 + 随机森林, 三模型对比)
 │   └── cache.py                 — 模型结果缓存 (单一真相来源)
 │
 ├── agent/                    # Agent 层：大模型对话
 │   ├── agent_core.py            — 手写 ReAct 推理循环 (Reason + Act)
-│   └── agent_tools.py           — 工具注册与查询函数 (6 个可调用工具)
+│   └── agent_tools.py           — 工具注册与查询函数 (8 个可调用工具)
 │
 ├── templates/                # HTML 模板 (7 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
-│   ├── h.html (薪资柱状+学历饼图+经验饼图+城市横向柱状)
+│   ├── h.html (薪资柱状+学历饼图+经验饼图+城市横向柱状+薪资vs经验/学历交叉分析)
 │   ├── ml.html (规则vs聚类对比图+城市分布图)
 │   ├── advice.html, collect.html
 │
-├── tests/                    # 测试 (97 个用例, 全部通过)
+├── tests/                    # 测试 (126 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试 (10 个用例: CSRF / 页码校验 / 采集口令 / 限流)
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
+│   ├── test_agent_tools.py      — Agent 工具函数测试 (11 个用例: compare_jobs / extract_skills)
+│   ├── test_cross.py            — 交叉分析函数测试 (11 个用例: salary_vs_exper / salary_vs_edu)
 │   ├── test_python_job_scraper.py — 采集参数构建单元测试 (27 个用例: 关键词 / 城市 / 页码 / 时间戳)
 │   ├── test_salary_parser.py    — 薪资解析全覆盖测试 (20 个用例: 面议/万/千/年/日/·薪/奖金剥离)
 │   ├── test_analysis_functions.py — classify/extract_city/tokenize/_fuzzy_match (32 个用例)
-│   └── test_model_logic.py      — 聚类/预测模型核心逻辑测试 (8 个用例, mock DB)
+│   └── test_model_logic.py      — 聚类/预测/缓存模型核心逻辑测试 (15 个用例, mock DB)
 │
 ├── Dockerfile                # Docker 镜像构建
 ├── docker-compose.yml        # Docker 一键部署
@@ -144,7 +147,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import train_and_evaluate; print(train_and_evaluate())"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (97 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (126 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）
@@ -226,6 +229,20 @@ python app.py                      # 访问 http://<服务器IP>:5000
 - `perf:` 性能优化
 
 ## 更新日志（Changelog）
+
+- **2026-07-04 · test: 新功能专项测试补齐 + 全量回归通过**
+  - 新增 `tests/test_agent_tools.py`（11 个用例）：覆盖 `compare_jobs` 城市/类别两种对比模式、`extract_skills` 关键词筛选/停用词/top_n/空结果
+  - 新增 `tests/test_cross.py`（11 个用例）：覆盖 `salary_vs_exper`/`salary_vs_edu` 结构/排序/统计正确性/边界场景
+  - `test_model_logic.py` 从 8 用例扩充至 15 用例：新增 RF 训练/三模型对比/model cache 测试
+  - 修复 `extract_skills` 空结果时漏返回 `total_jobs` 字段的问题
+  - 全量 126 个用例全部通过（原有 97 + 新增 29）
+
+- **2026-07-04 · feat: 结项答辩功能增量 — RandomForest 对比 + Agent 交叉工具 + 交叉分析图**
+  - 薪资预测新增 RandomForest 回归模型，形成「基线线性 → 全特征线性 → 全特征随机森林」三模型对比
+  - Agent 新增 `compare_jobs` 工具（城市/岗位并排对比）和 `extract_skills` 工具（职位标题技能词频提取），可调用工具从 6 个增至 8 个
+  - 图表页新增「薪资 vs 经验等级」和「薪资 vs 学历」两组组合图（柱状+折线双轴），直观展示交叉维度薪资差异
+  - 新增 `analysis/cross.py` 交叉分析模块
+  - ml.html 升级为三模型对比表格，随机森林指标自动高亮（R² 优胜时）
 
 - **2026-07-01 · docs/config 同步：README 对齐项目现状 + docker-compose 热更新挂载 + .gitignore**
   - 测试用例总数从 README 声称的 70/37 → 实测 **97 passed**（test_analysis_functions 25→32，test_app_routes 14→10，补齐 test_salary_parser 的奖金剥离说明）；test_agent_loop 标注为「预留骨架，待补齐」

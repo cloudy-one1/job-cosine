@@ -20,6 +20,7 @@ from analysis.jobtitle import classify
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -82,13 +83,45 @@ def _train_one(include_edu_exper, random_state=42):
     }
 
 
+def _train_rf(include_edu_exper, random_state=42):
+    """使用 RandomForestRegressor 训练模型,用于与线性回归对比。"""
+    X, y = build_dataset(include_edu_exper)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=random_state
+    )
+    model = Pipeline([
+        ('prep', ColumnTransformer([
+            ('cat', OneHotEncoder(handle_unknown='ignore'), list(range(X.shape[1]))),
+        ])),
+        ('reg', RandomForestRegressor(n_estimators=100, random_state=random_state, n_jobs=-1)),
+    ])
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    r2 = r2_score(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
+    baseline_pred = np.full_like(y_test, y_train.mean())
+    baseline_mae = mean_absolute_error(y_test, baseline_pred)
+
+    return {
+        'model': model, 'r2': r2, 'mae': mae, 'baseline_mae': baseline_mae,
+        'n_train': len(X_train), 'n_test': len(X_test),
+        'include_edu_exper': include_edu_exper,
+    }
+
+
 def train_and_evaluate(random_state=42):
-    """训练全特征模型和基线模型。返回全特征模型的结果字典,附加基线 R² 用于对比。"""
+    """训练三个模型:基线(城市+类别)、全特征线性回归、全特征随机森林。
+    返回全特征线性模型的结果字典,附加基线 R² 和随机森林 R² 用于对比。"""
     old_result = _train_one(include_edu_exper=False, random_state=random_state)
     new_result = _train_one(include_edu_exper=True, random_state=random_state)
+    rf_result = _train_rf(include_edu_exper=True, random_state=random_state)
 
     new_result['old_r2'] = old_result['r2']
     new_result['old_mae'] = old_result['mae']
+    new_result['rf_r2'] = rf_result['r2']
+    new_result['rf_mae'] = rf_result['mae']
+    new_result['rf_model'] = rf_result['model']
 
     # 记录训练时观察到的类别水平,以便下游调用方在请求值未见过时发出警告
     X, _ = build_dataset(include_edu_exper=True)
@@ -141,12 +174,17 @@ def predict_salary_safe(model, city, category, edu, exper, valid_edu, valid_expe
 if __name__ == '__main__':
     result = train_and_evaluate()
     print(f"训练样本数: {result['n_train']}, 测试样本数: {result['n_test']}")
-    print(f"仅使用 city + category          R2={result['old_r2']:.3f}  MAE={result['old_mae']:.2f}k 元")
-    print(f"使用 city + category + 学历 + 经验  R2={result['r2']:.3f}  MAE={result['mae']:.2f}k 元")
+    print(f"仅使用 city + category              R2={result['old_r2']:.3f}  MAE={result['old_mae']:.2f}k 元")
+    print(f"使用 city + category + 学历 + 经验(线性) R2={result['r2']:.3f}  MAE={result['mae']:.2f}k 元")
+    print(f"使用 city + category + 学历 + 经验(随机森林) R2={result['rf_r2']:.3f}  MAE={result['rf_mae']:.2f}k 元")
     if result['r2'] > result['old_r2']:
-        print(">> 学历与经验特征提升了 R2")
+        print(">> 学历与经验特征提升了线性回归 R2")
     else:
-        print(">> 学历与经验特征未提升 R2")
+        print(">> 学历与经验特征未提升线性回归 R2")
+    if result['rf_r2'] > result['r2']:
+        print(">> 随机森林 R2 优于线性回归 (非线性关系强)")
+    else:
+        print(">> 随机森林 R2 未优于线性回归 (样本量小/关系接近线性)")
     print(f"基线(预测为训练平均值)MAE: {result['baseline_mae']:.2f}k 元/月")
 
     print('\n预测示例:')

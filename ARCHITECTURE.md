@@ -1,4 +1,4 @@
-# TRAE.md — AI 开发工具项目配置（Trae / Claude / CodeGeeX 等通用）
+# ARCHITECTURE.md — 项目架构与开发规范
 
 > 用途：AI 辅助开发时的「项目内存」。新会话打开时，AI 会优先读取本文件，避免每次反复解释项目背景、目录分工、规范和坑点。
 > 最后更新：2026-07-03
@@ -26,10 +26,10 @@
 | 数据采集 | **Playwright + playwright-stealth** | requests 库被 51job WAF 拦截，必须用无头浏览器 + 隐身插件绕过 |
 | 数据分析 | **pandas + numpy** | 薪资分段解析、经验/学历/地区聚合 |
 | NLP | **jieba** | 岗位描述/技能词中文分词与词频 |
-| 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类 + 线性/树模型薪资预测；模型结果缓存避免重复训练 |
+| 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类 + 线性回归/随机森林薪资预测(三模型对比);模型结果缓存避免重复训练 |
 | AI Agent | 自研轻量 Agent + **DeepSeek API** | 基于采集数据+模型结果，输出个性化求职建议；密钥从 `.env` 读 |
 | 部署 | **Docker + docker-compose** | 容器内只跑 Web + ML + Agent，Playwright 爬虫在宿主机运行（体积原因）；volume 挂载 `data.db` + 源码热更新 |
-| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计约 97 个用例，覆盖率 > 90% |
+| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 126 个用例，覆盖率 > 90% |
 | 启动方式 | `python app.py`（venv 本机）或 `docker compose up -d` | Debug 开关由根目录 `.debug` 文件存在与否决定（不是 FLASK_DEBUG 环境变量） |
 
 ---
@@ -38,7 +38,7 @@
 
 ```
 project1/
-├── TRAE.md                 ← 你现在读的这个（AI 配置文件）
+├── ARCHITECTURE.md          ← 你现在读的这个（项目架构与规范）
 ├── README.md               ← 给人看的文档（GitHub 展示）
 ├── app.py                  ← Flask 入口；路由 + CSRF + 限流 + 启动逻辑
 ├── config.py               ← 全局常量导出：DB_PATH / DB_URI / DEEPSEEK_API_KEY / COLLECT_TOKEN
@@ -59,6 +59,7 @@ project1/
 │   ├── jinyan.py              ← 经验分布统计
 │   ├── xinzi.py               ← 薪资分段统计
 │   ├── region.py              ← 地区分布统计
+│   ├── cross.py               ← 交叉分析(薪资 vs 经验/学历)
 │   └── jobtitle.py            ← 职位名称关键词 + 技能词频（jieba）
 │
 ├── modeling/               ← 第 3 层：机器学习建模
@@ -83,6 +84,8 @@ project1/
 │   ├── test_app_routes.py      ← 路由/安全/CSRF/限流/分页输入校验回归测试
 │   ├── test_analysis_functions.py
 │   ├── test_model_logic.py
+│   ├── test_agent_tools.py     ← Agent 工具函数测试 (compare_jobs / extract_skills)
+│   ├── test_cross.py           ← 交叉分析函数测试 (salary_vs_exper / salary_vs_edu)
 │   ├── test_salary_parser.py
 │   ├── test_python_job_scraper.py
 │   └── test_agent_loop.py
@@ -90,7 +93,7 @@ project1/
 ├── Dockerfile              ← 容器镜像（Python 3.11-slim，只装 Playwright Python 绑定，不下 Chromium）
 ├── docker-compose.yml      ← 开发部署：5000:5000，挂载 data.db / templates / app.py / config.py 热更新
 ├── .dockerignore
-└── .gitignore              ← 已排除 .env / .debug / data.db / __pycache__ / .qoder/
+└── .gitignore              ← 已排除 .env / .debug / data.db / __pycache__ / node_modules/ / venv/
 ```
 
 ---
@@ -265,13 +268,15 @@ git push                                 # develop 直接推
 5. **敏感操作前先问**：删文件、合并 main、强制推送（`--force`）、数据库 DROP 表，必须先征得用户明确同意。
 6. **提交消息按 `type: description` 中文描述**。Commit 前先 `git diff --staged` 确认没有把 `.env` / `data.db` / `.qoder/` 加进去。
 7. **遇到图表/模板变更不生效**，优先提示用户查端口占用（坑 3），不要先怀疑代码。
-8. **AI 配置文件要同步维护**。项目结构/分支策略/安全约定有重大变更时，记得更新本 TRAE.md，并 commit 到 develop。
+8. **AI 配置文件要同步维护**。项目结构/分支策略/安全约定有重大变更时，记得更新本 ARCHITECTURE.md，并 commit 到 develop。
 
 ---
 
 ## 10. 最近变更记录（Changelog 摘要）
 
-- 2026-07-03 · `feat: 新增 TRAE.md AI 项目配置文件，统一 AI 开发上下文`
+- 2026-07-04 · `test: 新增 test_agent_tools.py(11) + test_cross.py(11) + RF/cache 测试(7),覆盖 compare_jobs/extract_skills/交叉分析/RF训练/缓存;全量 126 passed`
+- 2026-07-04 · `feat: 薪资预测新增 RandomForest 对比模型(三模型对比)、Agent 新增 compare_jobs/extract_skills 工具、图表页新增薪资vs经验/学历交叉分析图`
+- 2026-07-03 · `feat: 新增 ARCHITECTURE.md 项目架构与规范文档，统一 AI 开发上下文`
 - 2026-07-03 · `chore: Git 分支体系落地（main 保护 + develop 开发双分支），远程 main 设置 PR 合并规则`
 - 2026-07-01 · `security: CSRF + Flask-Limiter + COLLECT_TOKEN + Agent 参数白名单 + 分页输入校验（97 个测试全过）`
 - 2026-07-01 · `perf: sklearn/jieba 懒加载 + 三段进度打印，Flask 秒启`

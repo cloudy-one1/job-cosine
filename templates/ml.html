@@ -65,20 +65,42 @@
 
 <!-- 薪资预测 -->
 <h2 style="margin-top:36px; margin-bottom:6px;">薪资预测模型</h2>
-<div class="card" data-no="线性回归">
+<div class="card" data-no="模型对比">
     {% if model_ready %}
     <p style="color:var(--ink-soft); margin-top:0;">
-        用"城市 + 职位类别 + 学历 + 经验"四个特征做线性回归预测薪资。
-        <span class="mono" style="color:var(--ink);">R² = {{ "%.3f"|format(model_r2) }}</span>
-        (仅用城市+类别两个特征时 R² = <span class="mono">{{ "%.3f"|format(model_old_r2) }}</span>) ·
-        模型 MAE <span class="mono">{{ "%.2f"|format(model_mae) }}</span> 千元 ·
+        用"城市 + 职位类别 + 学历 + 经验"四个特征,对比三种模型的预测效果:
+    </p>
+    <table class="table table-striped" style="margin-top:12px; max-width:600px;">
+        <tr><th>模型</th><th>R²</th><th>MAE (千元)</th></tr>
+        <tr>
+            <td>基线(仅城市+类别,线性回归)</td>
+            <td class="mono">{{ "%.3f"|format(model_old_r2) }}</td>
+            <td class="mono">{{ "%.2f"|format(model_mae if model_old_r2 == 0 else model_mae) }}</td>
+        </tr>
+        <tr>
+            <td>全特征线性回归</td>
+            <td class="mono">{{ "%.3f"|format(model_r2) }}</td>
+            <td class="mono">{{ "%.2f"|format(model_mae) }}</td>
+        </tr>
+        <tr style="{% if model_rf_r2 > model_r2 %}background:#f0faf5{% endif %}">
+            <td>全特征随机森林</td>
+            <td class="mono">{{ "%.3f"|format(model_rf_r2) }}</td>
+            <td class="mono">{{ "%.2f"|format(model_rf_mae) }}</td>
+        </tr>
+    </table>
+    <p style="color:var(--ink-soft); margin-top:10px; font-size:13px;">
         基准 MAE(猜平均值) <span class="mono">{{ "%.2f"|format(baseline_mae) }}</span> 千元。
         {% if model_r2 > model_old_r2 %}
-        加入学历+经验后R²有提升,说明这两个特征确实带来了额外的信息量,
-        但整体R²不高也说明数据量小、影响薪资的因素远不止这四个特征,预测仅供参考。
+        加入学历+经验后线性回归 R² 有提升,说明这两个特征有额外信息量。
         {% else %}
-        加入学历+经验后R²没有明显提升,说明在当前数据规模下这两个特征的边际贡献有限。
+        加入学历+经验后线性回归 R² 没有明显提升,在当前数据量下边际贡献有限。
         {% endif %}
+        {% if model_rf_r2 > model_r2 %}
+        随机森林 R² 优于线性回归,说明特征与薪资间存在一定非线性关系;
+        {% else %}
+        随机森林 R² 不优于线性回归,说明在当前样本量下关系接近线性或随机森林过拟合;
+        {% endif %}
+        整体 R² 不高也说明薪资受样本量小等因素影响,预测仅供参考。
     </p>
     {% else %}
     <p style="color:var(--ink-soft); margin-top:0;">模型尚未训练,请先执行数据采集后再使用薪资预测功能。</p>

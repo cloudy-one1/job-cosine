@@ -24,6 +24,16 @@
     <div id="city_chart" style="width:100%; height:420px;"></div>
 </div>
 
+<!-- 交叉分析: 薪资 vs 经验 + 薪资 vs 学历 (并排) -->
+<div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap;">
+    <div class="card" data-no="薪资vs经验" style="flex:1; min-width:380px;">
+        <div id="cross_exper_chart" style="width:100%; height:420px;"></div>
+    </div>
+    <div class="card" data-no="薪资vs学历" style="flex:1; min-width:380px;">
+        <div id="cross_edu_chart" style="width:100%; height:420px;"></div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script>
 // ---------- 主题色 ----------
@@ -199,6 +209,100 @@ const tip = {
         }]
     });
     window.addEventListener('resize', function(){ chart.resize(); });
+})();
+
+// ---------- 5. 薪资 vs 经验 交叉分析 ----------
+(function(){
+    var dom = document.getElementById('cross_exper_chart');
+    if(!dom) return;
+    var chart = echarts.init(dom);
+    var data = {{ cross_exper|tojson }};
+    chart.setOption({
+        color: ['#2E6E5E','#A33B2E','#9C7F3F'],
+        tooltip: Object.assign({}, tip, {
+            formatter: function(p){
+                if(p.seriesName==='职位数') return '<b>'+p.name+'</b><br/>职位数: <b>'+p.value+'</b>';
+                return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
+            }
+        }),
+        title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
+        grid: { left: 50, right: 50, top: 55, bottom: 40 },
+        xAxis: {
+            type: 'category', data: data.labels,
+            axisLine: { lineStyle:{color:'#D7D9CB'} },
+            axisTick: { show:false },
+            axisLabel: { color:SOFT_COLOR, fontSize:12 }
+        },
+        yAxis: [
+            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
+              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
+            { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
+              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:12} }
+        ],
+        series: [
+            {
+                name: '职位数', type: 'bar', data: data.counts, yAxisIndex: 0,
+                barWidth: '50%', itemStyle: { borderRadius:[4,4,0,0], color: '#2E6E5E' },
+                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
+            },
+            {
+                name: '平均薪资(k)', type: 'line', data: data.avg_salaries, yAxisIndex: 1,
+                smooth: true, lineStyle: { width:3, color:'#A33B2E' },
+                itemStyle: { color:'#A33B2E' },
+                symbol: 'circle', symbolSize: 8,
+                label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
+            }
+        ]
+    });
+    window.addEventListener('resize',function(){ chart.resize(); });
+})();
+
+// ---------- 6. 薪资 vs 学历 交叉分析 ----------
+(function(){
+    var dom = document.getElementById('cross_edu_chart');
+    if(!dom) return;
+    var chart = echarts.init(dom);
+    var data = {{ cross_edu|tojson }};
+    chart.setOption({
+        color: ['#2E6E5E','#A33B2E','#9C7F3F'],
+        tooltip: Object.assign({}, tip, {
+            formatter: function(p){
+                if(p.seriesName==='职位数') return '<b>'+p.name+'</b><br/>职位数: <b>'+p.value+'</b>';
+                return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
+            }
+        }),
+        title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
+        grid: { left: 50, right: 50, top: 55, bottom: 40 },
+        xAxis: {
+            type: 'category', data: data.labels,
+            axisLine: { lineStyle:{color:'#D7D9CB'} },
+            axisTick: { show:false },
+            axisLabel: { color:SOFT_COLOR, fontSize:12 }
+        },
+        yAxis: [
+            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
+              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
+            { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
+              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:12} }
+        ],
+        series: [
+            {
+                name: '职位数', type: 'bar', data: data.counts, yAxisIndex: 0,
+                barWidth: '50%', itemStyle: { borderRadius:[4,4,0,0], color: '#2E6E5E' },
+                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
+            },
+            {
+                name: '平均薪资(k)', type: 'line', data: data.avg_salaries, yAxisIndex: 1,
+                smooth: true, lineStyle: { width:3, color:'#A33B2E' },
+                itemStyle: { color:'#A33B2E' },
+                symbol: 'circle', symbolSize: 8,
+                label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
+            }
+        ]
+    });
+    window.addEventListener('resize',function(){ chart.resize(); });
 })();
 </script>
 

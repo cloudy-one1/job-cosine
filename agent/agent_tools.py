@@ -11,6 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import sqlite3
+from collections import Counter
 import config
 from analysis.jobtitle import classify
 from analysis.xueli import xuelifun
@@ -132,6 +133,97 @@ def city_overview() -> list:
     return result
 
 
+def compare_jobs(dim_type: str, a: str, b: str) -> dict:
+    """并排对比两个城市或两个职位类别的招聘数据。
+
+    参数:
+        dim_type: 'city' 按城市对比, 'category' 按类别对比。
+        a, b: 要对比的两个值,如 a='北京' b='上海',或 a='后端开发' b='Web开发'。
+    """
+    db = _connect()
+    cursor = db.cursor()
+    cursor.execute("SELECT post, address, salary_min, salary_max, edu, exper FROM data")
+    rows = cursor.fetchall()
+    db.close()
+
+    def _side(val):
+        acc = {'count': 0, 'salaries': [], 'edu': Counter(), 'exper': Counter()}
+        for post, addr, smin, smax, edu, exper in rows:
+            if dim_type == 'city':
+                match = val in (addr or '')
+            else:
+                match = classify(post) == val
+            if match:
+                acc['count'] += 1
+                if smin or smax:
+                    acc['salaries'].append((smin + smax) / 2)
+                if edu:
+                    acc['edu'][edu] += 1
+                if exper:
+                    acc['exper'][exper] += 1
+        sal_list = acc['salaries']
+        return {
+            'value': val,
+            'count': acc['count'],
+            'avg_salary_k': round(sum(sal_list) / len(sal_list), 1) if sal_list else 0,
+            'min_salary_k': round(min(sal_list), 1) if sal_list else 0,
+            'max_salary_k': round(max(sal_list), 1) if sal_list else 0,
+            'top_edu': acc['edu'].most_common(3),
+            'top_exper': acc['exper'].most_common(3),
+        }
+
+    return {
+        'compare_type': dim_type,
+        'a': _side(a),
+        'b': _side(b),
+    }
+
+
+def extract_skills(keyword: str = '', top_n: int = 15) -> dict:
+    """从职位标题中提取高频技能关键词。
+
+    参数:
+        keyword: 可选,筛选包含该关键词的职位标题后提取;留空则从全部职位提取。
+        top_n: 返回前 N 个高频词,默认 15。
+    """
+    import jieba
+
+    # 常见中文停用词/无意义词
+    _stop_words = {
+        '工程师', '开发', '技术', '岗位', '方向', '相关', '以上', '以下',
+        '职位', '描述', '要求', '工作', '负责', '提供', '福利', '待遇',
+        '五险一金', '周末双休', '餐补', '房补', '绩效奖金', '年终奖',
+        '节日福利', '员工旅游', '带薪年假', '上升空间', '的', '和', '及', '与',
+        '等', '有', '在', '为', '或', '是', '了', '不', '1-3', '3-5', '5-10',
+    }
+
+    db = _connect()
+    cursor = db.cursor()
+    if keyword:
+        cursor.execute("SELECT post FROM data WHERE post LIKE ?", (f'%{keyword}%',))
+    else:
+        cursor.execute("SELECT post FROM data")
+    rows = cursor.fetchall()
+    db.close()
+
+    if not rows:
+        return {'keyword': keyword, 'total_jobs': 0, 'skills': [], 'message': '未找到匹配的职位'}
+
+    all_words = []
+    for (post,) in rows:
+        words = jieba.cut(post)
+        all_words.extend(w for w in words if len(w) >= 2 and w not in _stop_words)
+
+    counter = Counter(all_words)
+    skills = [{'skill': w, 'count': c} for w, c in counter.most_common(top_n)]
+
+    return {
+        'keyword': keyword or '全部',
+        'total_jobs': len(rows),
+        'skills': skills,
+    }
+
+
 # 工具注册表,agent 循环通过该表解析工具名称并构建系统提示中的工具列表
 TOOLS = {
     'query_jobs': {
@@ -157,6 +249,14 @@ TOOLS = {
     'predict_salary': {
         'func': predict_salary,
         'description': '使用线性回归模型预测月薪(千元)。参数: city (字符串), category (字符串), edu (可选字符串), exper (可选字符串)。',
+    },
+    'compare_jobs': {
+        'func': compare_jobs,
+        'description': '并排对比两个城市或两类岗位的薪资水平、职位数量、学历经验要求。参数: dim_type ("city" 或 "category"), a (第一个值), b (第二个值)。例如 compare_jobs("city","北京","上海")。',
+    },
+    'extract_skills': {
+        'func': extract_skills,
+        'description': '从职位标题中提取高频技能关键词词频。参数: keyword (可选,筛选关键词), top_n (可选,返回前N个,默认15)。例如 extract_skills("Python",10)。',
     },
 }
 

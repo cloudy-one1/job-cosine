@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import numpy as np
+import warnings
 
 
 # ============================================================
@@ -192,6 +193,157 @@ class TestPredictSalarySafe:
             valid_city=valid_city,
         )
         assert any('拉萨' in w for w in warnings)
+
+
+# ============================================================
+# _train_rf() + train_and_evaluate() — 随机森林训练与三模型对比
+# ============================================================
+def _make_synthetic_rows(n=50, seed=42):
+    """生成合成数据，模拟 get_rows() 返回格式。"""
+    import random
+    rng = random.Random(seed)
+    cities = ['北京', '上海', '深圳', '广州', '杭州']
+    posts = ['Python后端开发', 'Java后端开发', '前端开发工程师',
+             'Python爬虫工程师', '运维工程师', '测试工程师',
+             '大数据开发', '数据挖掘工程师']
+    edus = ['不限', '大专', '本科', '硕士', '博士']
+    expers = ['经验不限', '1-3年', '3-5年', '5-10年', '10年以上']
+    rows = []
+    for _ in range(n):
+        city = rng.choice(cities)
+        post = rng.choice(posts)
+        edu = rng.choice(edus)
+        exper = rng.choice(expers)
+        base = {'不限': 5, '大专': 8, '本科': 15, '硕士': 22, '博士': 35}[edu]
+        noise = rng.uniform(-3, 8)
+        smin = max(3, base + noise - rng.uniform(1, 4))
+        smax = smin + rng.uniform(3, 15)
+        rows.append((post, city, round(smin, 1), round(smax, 1), edu, exper))
+    return rows
+
+
+class TestTrainRF:
+    """验证 _train_rf 和 train_and_evaluate。"""
+
+    def test_train_rf_returns_expected_keys(self, monkeypatch):
+        """_train_rf 返回字典包含 model, r2, mae, baseline_mae。"""
+        from modeling import salary_predict
+        monkeypatch.setattr(salary_predict, 'get_rows', lambda: _make_synthetic_rows(60))
+        # 抑制 sklearn 关于特征名未知的警告
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            result = salary_predict._train_rf(include_edu_exper=True, random_state=42)
+
+        assert 'model' in result
+        assert 'r2' in result
+        assert 'mae' in result
+        assert 'baseline_mae' in result
+        assert 'n_train' in result
+        assert 'n_test' in result
+        assert isinstance(result['r2'], float)
+        assert isinstance(result['mae'], float)
+        assert result['mae'] > 0
+        assert result['n_train'] > 0 and result['n_test'] > 0
+
+    def test_train_rf_model_is_pipeline(self, monkeypatch):
+        """RF 模型是 Pipeline 实例。"""
+        from modeling import salary_predict
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.pipeline import Pipeline
+        monkeypatch.setattr(salary_predict, 'get_rows', lambda: _make_synthetic_rows(40))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            result = salary_predict._train_rf(include_edu_exper=True, random_state=42)
+
+        assert isinstance(result['model'], Pipeline)
+        # Pipeline 最后一步是 RandomForestRegressor
+        assert isinstance(result['model'].named_steps['reg'], RandomForestRegressor)
+
+    def test_train_and_evaluate_returns_three_models(self, monkeypatch):
+        """train_and_evaluate 返回三个模型的指标: old_r2, r2, rf_r2。"""
+        from modeling import salary_predict
+        monkeypatch.setattr(salary_predict, 'get_rows', lambda: _make_synthetic_rows(60))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            result = salary_predict.train_and_evaluate(random_state=42)
+
+        assert 'old_r2' in result       # 基线(城市+类别)线性回归
+        assert 'r2' in result           # 全特征线性回归
+        assert 'rf_r2' in result        # 全特征随机森林
+        assert 'old_mae' in result
+        assert 'mae' in result
+        assert 'rf_mae' in result
+        assert 'rf_model' in result
+        # 应有 valid_edu / valid_exper 供 predict_salary_safe 使用
+        assert 'valid_edu' in result
+        assert 'valid_exper' in result
+        assert isinstance(result['valid_edu'], list)
+        assert isinstance(result['valid_exper'], list)
+
+    def test_train_and_evaluate_valid_levels(self, monkeypatch):
+        """valid_edu / valid_exper / valid_city / valid_category 不为空。"""
+        from modeling import salary_predict
+        monkeypatch.setattr(salary_predict, 'get_rows', lambda: _make_synthetic_rows(40))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            result = salary_predict.train_and_evaluate(random_state=42)
+
+        assert len(result['valid_edu']) > 0
+        assert len(result['valid_exper']) > 0
+        assert len(result['valid_city']) > 0
+        assert len(result['valid_category']) > 0
+
+    def test_baseline_vs_full_different(self, monkeypatch):
+        """基线模型和全特征模型应有不同的 R² (或至少都是合法值)。"""
+        from modeling import salary_predict
+        monkeypatch.setattr(salary_predict, 'get_rows', lambda: _make_synthetic_rows(80))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            result = salary_predict.train_and_evaluate(random_state=42)
+
+        # R² 应是合法浮点
+        assert -1.0 <= result['old_r2'] <= 1.0
+        assert -1.0 <= result['r2'] <= 1.0
+        assert -1.0 <= result['rf_r2'] <= 1.0
+        # MAE 应为正
+        assert result['old_mae'] > 0
+        assert result['mae'] > 0
+        assert result['rf_mae'] > 0
+
+
+# ============================================================
+# modeling.cache — 模型缓存单例
+# ============================================================
+class TestModelCache:
+    """验证模型缓存的 get/update 机制。"""
+
+    def test_get_returns_result(self):
+        """首次 get() 应触发训练并返回非 None 结果。"""
+        import modeling.cache as cache
+        # 重置缓存
+        cache.update(None)
+        # get 内部会懒训练 (需要 mock get_rows)
+        # 直接验证 update/get 机制: 手动注入假结果
+        fake_result = {'model': None, 'r2': 0.85, 'old_r2': 0.72}
+        cache.update(fake_result)
+        result = cache.get()
+        assert result is not None
+        assert result['r2'] == 0.85
+        assert result['old_r2'] == 0.72
+
+    def test_update_then_get(self):
+        """update 后 get 返回新值。"""
+        import modeling.cache as cache
+
+        old = {'model': object(), 'r2': 0.50}
+        new = {'model': object(), 'r2': 0.90}
+
+        cache.update(old)
+        assert cache.get()['r2'] == 0.50
+
+        cache.update(new)
+        assert cache.get()['r2'] == 0.90
+        assert cache.get() is new  # 同一引用
 
 
 if __name__ == '__main__':

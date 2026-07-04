@@ -34,7 +34,6 @@ data.db
 
 .vscode/
 .idea/
-.qoder/
 *.swp
 *.swo
 *~
@@ -50,6 +49,8 @@ instance/
 
 logs/
 cache/
+node_modules/
+venv/
 .debug
 
 .DS_Store
