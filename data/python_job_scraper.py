@@ -25,10 +25,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
 import random
+import logging
 from datetime import datetime, timezone
 
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
+
+_logger = logging.getLogger('job_analysis')
 
 # 51job城市代码表(来自51job官方城市代码表,覆盖国内30个主要城市)
 CITY_CODES = {
@@ -46,18 +49,23 @@ CITY_CODES = {
 JS_FETCH_API = """
 async (params) => {
     const url = 'https://we.51job.com/api/job/search-pc?' + new URLSearchParams(params).toString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);  // 15秒超时
     try {
         const res = await fetch(url, {
             method: 'GET',
             credentials: 'include',
-            headers: {'Accept': 'application/json, text/plain, */*'}
+            headers: {'Accept': 'application/json, text/plain, */*'},
+            signal: controller.signal
         });
+        clearTimeout(timeout);
         if (!res.ok) return {error: 'HTTP ' + res.status};
         const text = await res.text();
-        if (text.startsWith('<') || text.length < 100) return {error: 'WAF拦截'};
+        if (text.startsWith('<') || text.length < 100) return {error: 'WAF拦截/返回HTML'};
         return JSON.parse(text);
     } catch(e) {
-        return {error: e.message};
+        clearTimeout(timeout);
+        return {error: e.name === 'AbortError' ? '请求超时(15s)' : e.message};
     }
 }
 """
@@ -154,36 +162,42 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
         )
         page.goto(search_url, timeout=30000, wait_until='domcontentloaded')
 
-        # WAF验证等待: 前10轮每0.5s查一次(5s),后20轮每1s查一次(20s),最多等25s
-        for i in range(10):
+        # WAF验证等待: 前10轮每0.5s查一次(5s),后15轮每1s查一次(15s),最多等20s
+        waf_passed = False
+        for round_idx in range(25):
             try:
-                cnt = page.evaluate("document.querySelectorAll('.joblist-item').length")
+                cnt = page.evaluate(
+                    "document.querySelectorAll('.joblist-item').length",
+                    timeout=3000  # 单次 evaluate 超时 3 秒
+                )
                 if cnt >= 1:
+                    waf_passed = True
+                    _logger.info('WAF验证通过 (耗时约 %.1f 秒)', round_idx * 0.5 if round_idx < 10 else 5 + (round_idx - 10))
                     break
             except Exception:
                 pass
-            time.sleep(0.5)
+            wait_s = 0.5 if round_idx < 10 else 1.0
+            time.sleep(wait_s)
         else:
-            for i in range(20):
-                try:
-                    cnt = page.evaluate("document.querySelectorAll('.joblist-item').length")
-                    if cnt >= 1:
-                        break
-                except Exception:
-                    pass
-                time.sleep(1)
+            _logger.warning('WAF验证超时(20s), 51job可能拦截了请求, 尝试继续...')
 
         now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
         for city, code in valid_cities:
+            _logger.info('开始采集: %s', city)
             for pg in range(1, pages_per_city + 1):
                 params = build_api_params(keyword, code, pg)
                 # 前3页快速翻(模拟正常浏览),后面逐渐放慢避免触发风控
                 delay = random.uniform(0.1, 0.3) if pg <= 3 else random.uniform(0.3, 0.6)
                 time.sleep(delay)
-                data = page.evaluate(JS_FETCH_API, params)
+                try:
+                    data = page.evaluate(JS_FETCH_API, params, timeout=25000)  # 留 10s 给 fetch 内部的 15s
+                except Exception as e:
+                    _logger.warning('[%s] 第%d页 evaluate 超时/异常: %s', city, pg, e)
+                    break
 
                 if isinstance(data, dict) and 'error' in data:
+                    _logger.warning('[%s] 第%d页 API 错误: %s', city, pg, data['error'])
                     break
 
                 job_list = data.get('resultbody', {}).get('job', {}).get('items', [])
@@ -206,6 +220,29 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
                     else:
                         address = city
 
+                    # 尝试从搜索 API 获取职位描述/标签/福利作为 content
+                    content_parts = []
+                    desc = (j.get('jobDescription') or j.get('description') or '').strip()
+                    if desc:
+                        content_parts.append(desc)
+                    tags = j.get('jobTags') or []
+                    if tags:
+                        content_parts.append(' '.join(str(t) for t in tags))
+                    welfare = j.get('jobWelfareList') or []
+                    if welfare:
+                        content_parts.append(' '.join(str(w) for w in welfare))
+                    content = ' '.join(content_parts).strip()
+                    
+                    # 构建51job原始链接
+                    # 51job职位URL格式: https://jobs.51job.com/城市拼音/jobId.html
+                    # 如果没有城市信息，使用通用格式
+                    job_id = j.get('jobId', '')
+                    city_pinyin = ''
+                    if job_area:
+                        # 尝试从城市名获取拼音（简化处理：使用城市名作为路径）
+                        city_pinyin = city.lower()
+                    job_url = f'https://jobs.51job.com/{city_pinyin}/{job_id}.html' if job_id and city_pinyin else f'https://jobs.51job.com/p-x-x-x-x-x-x-x-x-x-x/{job_id}.html' if job_id else ''
+                    
                     all_jobs.append({
                         'post': title,
                         'company': (j.get('companyName') or '').strip(),
@@ -215,17 +252,22 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
                         'exper': (j.get('workYearString') or '').strip(),
                         'dateT': (j.get('issueDateString') or '').strip(),
                         'scrape_date': now,
+                        'content': content,
+                        'job_url': job_url,
                     })
                     added += 1
 
+                _logger.info('[%s] 第%d页: +%d条 (累计 %d)', city, pg, added, len(all_jobs))
                 if progress_callback:
                     progress_callback(city, pg, added)
                 if added == 0:
+                    _logger.info('[%s] 第%d页无新数据, 跳过后续页', city, pg)
                     break
 
         page.close()
         browser.close()
 
+    _logger.info('采集完成: 共 %d 条数据 (关键词=%s, 城市=%s)', len(all_jobs), keyword, cities)
     return all_jobs
 
 
@@ -266,9 +308,10 @@ if __name__ == '__main__':
             try:
                 cursor.execute(
                     "insert into data (post,company,address,salary_min,salary_max,"
-                    "dateT,edu,exper,content) values(?,?,?,?,?,?,?,?,?)",
+                    "dateT,edu,exper,content,job_url) values(?,?,?,?,?,?,?,?,?,?)",
                     (j['post'], j['company'], j['address'], smin, smax,
-                     j['dateT'], j['edu'], j['exper'], '')
+                     j['dateT'], j['edu'], j['exper'], j.get('content', ''),
+                     j.get('job_url', ''))
                 )
                 success += 1
             except Exception as e:

@@ -96,6 +96,44 @@ except Exception:
 PER_PAGE = 12
 
 
+# --- 数据库迁移 ----------------------------------------------------------------
+def init_db():
+    """初始化数据库，确保包含所有必要字段（含新增的 job_url）"""
+    try:
+        db = sqlite3.connect(config.DB_PATH)
+        cursor = db.cursor()
+        
+        # 检查 data 表是否存在
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='data'")
+        if not cursor.fetchone():
+            # 表不存在，创建新表
+            cursor.execute("""
+                CREATE TABLE data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    post TEXT, company TEXT, address TEXT,
+                    salary_min REAL, salary_max REAL,
+                    dateT TEXT, edu TEXT, exper TEXT, content TEXT,
+                    job_url TEXT
+                )
+            """)
+        else:
+            # 表存在，检查是否有 job_url 字段
+            cursor.execute("PRAGMA table_info(data)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'job_url' not in columns:
+                cursor.execute("ALTER TABLE data ADD COLUMN job_url TEXT")
+                
+        db.commit()
+        db.close()
+        _logger.info('数据库初始化完成')
+    except Exception as e:
+        _logger.error('数据库初始化失败: %s', e)
+
+
+# 应用启动时初始化数据库
+init_db()
+
+
 # --- 数据库连接管理 (Flask g 复用) -----------------------------------------
 def get_db():
     """获取当前请求上下文中的 SQLite 连接;不存在则创建。
@@ -236,7 +274,7 @@ def list_data():
     db = get_db()
     cursor = db.cursor()
     cursor.execute(
-        f"SELECT post, company, address, salary_min, salary_max, dateT FROM data "
+        f"SELECT id, post, company, address, salary_min, salary_max, dateT FROM data "
         f"{where_clause} LIMIT ? OFFSET ?",
         (*params, PER_PAGE, (page - 1) * PER_PAGE)
     )
@@ -249,6 +287,39 @@ def list_data():
         'data.html', rows=rows, kw=kw, city=city_raw, page=page,
         total=total, total_pages=total_pages
     )
+
+
+@app.route('/job/<int:job_id>')
+def job_detail(job_id):
+    """岗位详情页面"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT id, post, company, address, salary_min, salary_max, dateT, edu, exper, content, job_url "
+        "FROM data WHERE id = ?",
+        (job_id,)
+    )
+    job = cursor.fetchone()
+
+    if job is None:
+        return render_template('job_detail.html', job=None, error='未找到该岗位信息')
+
+    # 将 Row 对象转换为字典，方便模板访问
+    job_dict = {
+        'id': job['id'],
+        'post': job['post'],
+        'company': job['company'],
+        'address': job['address'],
+        'salary_min': job['salary_min'],
+        'salary_max': job['salary_max'],
+        'dateT': job['dateT'],
+        'edu': job['edu'],
+        'exper': job['exper'],
+        'content': job['content'],
+        'job_url': job['job_url']
+    }
+
+    return render_template('job_detail.html', job=job_dict, error=None)
 
 
 @app.route('/chart')
@@ -393,9 +464,11 @@ def collect():
     if not keyword:
         return render_template('collect.html', error='请输入采集关键词')
 
+    _logger.info('采集开始: 关键词=%s, 城市=%s, 页数=%d', keyword, cities, pages)
     try:
         jobs = scrape_jobs(keyword, cities, pages_per_city=pages)
     except Exception as e:
+        _logger.error('采集异常: %s', e)
         # 不把原始异常信息直接抛给前端,避免泄露内部路径/堆栈信息
         return render_template('collect.html', error='采集过程发生错误,请稍后重试',
                                 keyword=keyword, city=city_raw)
@@ -417,9 +490,10 @@ def collect():
         try:
             cursor.execute(
                 "insert into data (post,company,address,salary_min,salary_max,"
-                "dateT,edu,exper,content) values(?,?,?,?,?,?,?,?,?)",
+                "dateT,edu,exper,content,job_url) values(?,?,?,?,?,?,?,?,?,?)",
                 (j['post'], j['company'], j['address'], smin, smax,
-                 j['dateT'], j['edu'], j['exper'], '')
+                 j['dateT'], j['edu'], j['exper'], j.get('content', ''),
+                 j.get('job_url', ''))
             )
             success += 1
         except Exception:
@@ -460,20 +534,66 @@ def collect():
 
 @app.route('/advice', methods=['GET', 'POST'])
 def advice():
-    if request.method == 'POST':
+    if request.method != 'POST':
+        # GET: 通过 ?tool= 参数指定默认打开的标签页
+        tool = request.args.get('tool', 'agent')
+        return render_template('advice.html', active_tab=tool)
+
+    tool = request.form.get('tool', 'agent')
+
+    # --- 综合 Agent 模式（默认） ---
+    if tool == 'agent':
         question = request.form.get('question', '').strip()
         if not question:
-            return render_template('advice.html', error='请输入你的问题')
+            return render_template('advice.html', error='请输入你的问题', active_tab='agent')
         api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
         if not api_key:
-            return render_template('advice.html', error='请先在config.py里设置DEEPSEEK_API_KEY', question=question)
+            return render_template('advice.html', error='请先在config.py里设置DEEPSEEK_API_KEY',
+                                   question=question, active_tab='agent')
         try:
             from agent.agent_core import run_agent
             answer, trace = run_agent(question, api_key, max_steps=5, verbose=False)
-        except Exception as e:
-            return render_template('advice.html', error='Agent调用失败,请稍后重试', question=question)
-        return render_template('advice.html', question=question, answer=answer, trace=trace)
-    return render_template('advice.html')
+        except Exception:
+            return render_template('advice.html', error='Agent调用失败,请稍后重试',
+                                   question=question, active_tab='agent')
+        return render_template('advice.html', question=question, answer=answer, trace=trace, active_tab='agent')
+
+    # --- 城市/类别对比工具 ---
+    if tool == 'compare':
+        dim_type = request.form.get('dim_type', 'city').strip()
+        a = request.form.get('a', '').strip()
+        b = request.form.get('b', '').strip()
+        if not a or not b:
+            return render_template('advice.html', compare_error='请输入两个要对比的城市或职位类别',
+                                   compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+        try:
+            from agent.agent_tools import compare_jobs
+            compare_result = compare_jobs(dim_type, a, b)
+        except Exception:
+            return render_template('advice.html', compare_error='对比查询失败,请稍后重试',
+                                   compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+        return render_template('advice.html', compare_result=compare_result,
+                               compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+
+    # --- 技能关键词提取工具 ---
+    if tool == 'skills':
+        keyword = request.form.get('keyword', '').strip()
+        try:
+            top_n = int(request.form.get('top_n', 15))
+        except (ValueError, TypeError):
+            top_n = 15
+        top_n = max(1, min(top_n, 30))
+        try:
+            from agent.agent_tools import extract_skills as extract_skills_fn
+            skills_result = extract_skills_fn(keyword or '', top_n)
+        except Exception:
+            return render_template('advice.html', skills_error='技能提取失败,请稍后重试',
+                                   skills_keyword=keyword, skills_top_n=top_n, active_tab='skills')
+        return render_template('advice.html', skills_result=skills_result,
+                               skills_keyword=keyword, skills_top_n=top_n, active_tab='skills')
+
+    # 未知工具类型，回退到 Agent
+    return render_template('advice.html', error='未知工具类型', active_tab='agent')
 
 
 # --- 模板全局变量注入 ------------------------------------------------------------

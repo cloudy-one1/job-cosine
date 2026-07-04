@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+
+<p class="eyebrow">案卷 NO. 03 · 岗位详情</p>
+<h2 style="margin-bottom:18px;">职位档案详情</h2>
+
+{% if error %}
+<div class="card" style="border-left: 4px solid var(--stamp);">
+    <p style="color:var(--stamp); font-weight:600; margin:0;">{{ error }}</p>
+</div>
+{% elif job %}
+<div class="card" style="border-left: 4px solid var(--teal);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h3 style="margin:0 0 8px 0; color:var(--ink); font-size:20px;">{{ job.post }}</h3>
+            <p style="margin:0; color:var(--ink-soft); font-size:14px;">
+                <span style="margin-right:16px;">🏢 {{ job.company or '未披露' }}</span>
+                <span>📍 {{ job.address }}</span>
+            </p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="{{ url_for('list_data') }}" class="btn btn-default" style="text-decoration:none; font-size:13px;">
+                ← 返回列表
+            </a>
+            {% if job.job_url %}
+            <a href="{{ job.job_url }}" target="_blank" class="btn btn-info" style="text-decoration:none; font-size:13px; background:linear-gradient(135deg, #FF6B35, #F7931E); border-color:#FF6B35; color:white;">
+                🔗 查看51job原文
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px; padding:16px; background:var(--paper); border-radius:4px;">
+        <div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;">薪资范围</div>
+            <div style="font-size:18px; font-weight:700; color:var(--teal);" class="mono">
+                {{ "%.1f"|format(job.salary_min) }}-{{ "%.1f"|format(job.salary_max) }}K
+            </div>
+        </div>
+        <div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;">学历要求</div>
+            <div style="font-size:15px; font-weight:600;">{{ job.edu or '不限' }}</div>
+        </div>
+        <div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;">经验要求</div>
+            <div style="font-size:15px; font-weight:600;">{{ job.exper or '不限' }}</div>
+        </div>
+        <div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;">发布时间</div>
+            <div style="font-size:14px;">{{ job.dateT or '未知' }}</div>
+        </div>
+    </div>
+
+    {% if job.content %}
+    <div>
+        <h4 style="margin:0 0 12px 0; font-size:16px; color:var(--ink);">职位描述与要求</h4>
+        <div style="padding:16px; background:var(--paper); border-radius:4px; line-height:1.8; white-space:pre-wrap; font-size:14px; color:var(--ink); max-height:400px; overflow-y:auto;">
+{{ job.content }}
+        </div>
+    </div>
+    {% else %}
+    <div style="padding:20px; text-align:center; color:var(--ink-soft); font-size:14px;">
+        该职位暂无详细描述信息
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="card">
+    <p style="color:var(--ink-soft); text-align:center; padding:30px 0; margin:0;">
+        数据加载中...
+    </p>
+</div>
+{% endif %}
+
+{% endblock %}
