@@ -11,7 +11,7 @@
 | 描述性统计 | 薪资/学历/经验/城市分布 | Pandas + SQLite |
 | 职位聚类 | 自动发现职位类别结构 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
 | 薪资预测 | 多维特征回归(线性+随机森林三模型对比) | Scikit-Learn + OneHotEncoder + RandomForest |
-| AI Agent | 自然语言交互式数据分析 | 手写 ReAct 推理循环 + LLM 工具调用 |
+| AI Agent | 自然语言交互式数据分析 + 城市对比 + 技能提取 | 手写 ReAct 推理循环 + LLM 工具调用 + 正则技能词库 |
 | Docker 部署 | 一键容器化运行 | Docker + docker-compose |
 
 > **容错设计**：空数据库首次启动不会崩溃，所有页面友好提示"请先采集数据"，无需预先准备任何数据。
@@ -76,8 +76,9 @@ project1/
 │   ├── ml.html (规则vs聚类对比图+城市分布图)
 │   ├── advice.html, collect.html
 │
-├── tests/                    # 测试 (137 个用例, 全部通过)
+├── tests/                    # 测试 (154 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试 (10 个用例: CSRF / 页码校验 / 采集口令 / 限流)
+│   ├── test_advice_route.py     — advice 3-tab 功能测试 (17 个用例: Agent/对比/技能 GET+POST / 边界)
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
 │   ├── test_agent_tools.py      — Agent 工具函数测试 (11 个用例: compare_jobs / extract_skills)
 │   ├── test_cross.py            — 交叉分析函数测试 (11 个用例: salary_vs_exper / salary_vs_edu)
@@ -147,7 +148,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import train_and_evaluate; print(train_and_evaluate())"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (137 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (154 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）
@@ -208,7 +209,7 @@ python app.py                      # 访问 http://<服务器IP>:5000
 | `/job/<id>` | 职位详情 + 51job原文跳转 | `job_detail.html` |
 | `/chart` | 薪资/学历/经验分布图 | `h.html` |
 | `/ml` | 聚类结果 + 薪资预测表单 | `ml.html` |
-| `/advice` | AI Agent 问答对话 | `advice.html` |
+| `/advice` | AI Agent 问答 + 城市对比 + 技能提取（3-tab） | `advice.html` |
 | `/collect` | 触发实时数据采集 | `collect.html` |
 
 ## 代码阅读建议（课程学习顺序）
@@ -230,6 +231,14 @@ python app.py                      # 访问 http://<服务器IP>:5000
 - `perf:` 性能优化
 
 ## 更新日志（Changelog）
+
+- **2026-07-04 · feat: advice 页面 3-tab 功能补全 + 测试覆盖 + JS 健壮性修复**
+  - `/advice` 路由支持 `tool` 参数（`agent`/`compare`/`skills`），后端完整实现三种模式
+  - `advice.html` 重写为 3-tab 导航界面：综合建议 Agent、城市/类别对比、技能关键词提取
+  - 修复 `switchTab` JavaScript：废弃脆弱的文本匹配，改用 `data-tab` 属性定位，确保 tab 切换可靠
+  - 三个 POST 表单均包含 `csrf_token` 隐藏字段，CSRF 保护已生效
+  - 新增 `tests/test_advice_route.py`（17 个用例）：覆盖 GET 三 tab 渲染、POST Agent 完整链路、POST 对比（城市/类别）、POST 技能（关键词/全量/top_n 边界）、未知 tool 回退、CSRF token 存在性、data-tab 属性完整性
+  - 全量 154 个用例全部通过（原有 137 + 新增 17）
 
 - **2026-07-04 · feat: Agent技能提取增强 + 对话页面UI升级**
   - `extract_skills` 新增正则技术关键词匹配库，覆盖编程语言/框架/数据库/云原生/AI/嵌入式/电气自动化等 100+ 技术术语
