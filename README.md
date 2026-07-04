@@ -232,6 +232,13 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## 更新日志（Changelog）
 
+- **2026-07-04 · fix: 职位详情页51job原文跳转按钮不显示**
+  - 根因：`ALTER TABLE` 新增的 `job_url` 字段在旧记录上为 `NULL`，模板 `{% if job.job_url %}` 判断为假导致按钮不渲染
+  - `app.py /job/<id>` 路由：读取时 `job['job_url'] or ''` 回退，兼容旧数据
+  - `python_job_scraper.py`：新增 `CITY_PINYIN` 中文→拼音映射表（30 城市），替换 `city.lower()` 错误构建
+  - 兼容 API 返回 `jobId`/`jobid` 大小写字段，确保 `job_id` 正确提取
+  - 154 个测试全部通过
+
 - **2026-07-04 · feat: advice 页面 3-tab 功能补全 + 测试覆盖 + JS 健壮性修复**
   - `/advice` 路由支持 `tool` 参数（`agent`/`compare`/`skills`），后端完整实现三种模式
   - `advice.html` 重写为 3-tab 导航界面：综合建议 Agent、城市/类别对比、技能关键词提取
