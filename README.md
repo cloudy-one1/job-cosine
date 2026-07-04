@@ -70,13 +70,13 @@ project1/
 │   ├── agent_core.py            — 手写 ReAct 推理循环 (Reason + Act)
 │   └── agent_tools.py           — 工具注册与查询函数 (8 个可调用工具)
 │
-├── templates/                # HTML 模板 (7 个页面, ECharts 可视化)
+├── templates/                # HTML 模板 (8 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
 │   ├── h.html (薪资柱状+学历饼图+经验饼图+城市横向柱状+薪资vs经验/学历交叉分析)
 │   ├── ml.html (规则vs聚类对比图+城市分布图)
 │   ├── advice.html, collect.html
 │
-├── tests/                    # 测试 (126 个用例, 全部通过)
+├── tests/                    # 测试 (137 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试 (10 个用例: CSRF / 页码校验 / 采集口令 / 限流)
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
 │   ├── test_agent_tools.py      — Agent 工具函数测试 (11 个用例: compare_jobs / extract_skills)
@@ -147,7 +147,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import train_and_evaluate; print(train_and_evaluate())"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (126 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (137 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）
@@ -205,6 +205,7 @@ python app.py                      # 访问 http://<服务器IP>:5000
 |------|------|---------|
 | `/` | 首页（关键词 + 城市输入） | `input.html` |
 | `/list` | 职位列表（分页 + 筛选） | `data.html` |
+| `/job/<id>` | 职位详情 + 51job原文跳转 | `job_detail.html` |
 | `/chart` | 薪资/学历/经验分布图 | `h.html` |
 | `/ml` | 聚类结果 + 薪资预测表单 | `ml.html` |
 | `/advice` | AI Agent 问答对话 | `advice.html` |
@@ -229,6 +230,19 @@ python app.py                      # 访问 http://<服务器IP>:5000
 - `perf:` 性能优化
 
 ## 更新日志（Changelog）
+
+- **2026-07-04 · feat: Agent技能提取增强 + 对话页面UI升级**
+  - `extract_skills` 新增正则技术关键词匹配库，覆盖编程语言/框架/数据库/云原生/AI/嵌入式/电气自动化等 100+ 技术术语
+  - `extract_skills` 扩展为标题+内容（`content` 列）双源分析，大幅提升技能识别召回率
+  - 扩充停用词库至 80+ 词，包含城市名/公司后缀/职位级别/福利词/连接词，有效减少噪音
+  - advice.html Agent 对话页面全面 UI 升级（331 行变更）
+  - 测试表结构添加 `content` 字段对齐生产环境
+
+- **2026-07-04 · feat: 职位详情页添加51job原文跳转**
+  - 爬虫新增 `job_url` 字段，自动构建 51job 原始职位链接
+  - 数据库自动迁移：启动时检测并添加 `job_url` 列（兼容旧表）
+  - `/collect` 和 `/job/<id>` 路由完整支持 `job_url` 的存储与查询
+  - `job_detail.html` 页面新增「查看51job原文」按钮，点击新标签页打开原始招聘页面
 
 - **2026-07-04 · test: 新功能专项测试补齐 + 全量回归通过**
   - 新增 `tests/test_agent_tools.py`（11 个用例）：覆盖 `compare_jobs` 城市/类别两种对比模式、`extract_skills` 关键词筛选/停用词/top_n/空结果
