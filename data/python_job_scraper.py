@@ -46,6 +46,19 @@ CITY_CODES = {
     "西安": "200200", "成都": "090200", "重庆": "060000", "昆明": "250200",
 }
 
+# 中文城市名 → 拼音映射(用于构建 51job 原始链接 URL)
+CITY_PINYIN = {
+    "北京": "beijing", "天津": "tianjin", "大连": "dalian", "沈阳": "shenyang",
+    "长春": "changchun", "哈尔滨": "haerbin", "石家庄": "shijiazhuang",
+    "上海": "shanghai", "南京": "nanjing", "苏州": "suzhou", "杭州": "hangzhou",
+    "宁波": "ningbo", "合肥": "hefei", "济南": "jinan", "青岛": "qingdao",
+    "福州": "fuzhou", "厦门": "xiamen", "南昌": "nanchang", "无锡": "wuxi",
+    "常州": "changzhou",
+    "广州": "guangzhou", "深圳": "shenzhen", "东莞": "dongguan", "武汉": "wuhan",
+    "长沙": "changsha", "郑州": "zhengzhou",
+    "西安": "xian", "成都": "chengdu", "重庆": "chongqing", "昆明": "kunming",
+}
+
 JS_FETCH_API = """
 async (params) => {
     const url = 'https://we.51job.com/api/job/search-pc?' + new URLSearchParams(params).toString();
@@ -235,13 +248,9 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
                     
                     # 构建51job原始链接
                     # 51job职位URL格式: https://jobs.51job.com/城市拼音/jobId.html
-                    # 如果没有城市信息，使用通用格式
-                    job_id = j.get('jobId', '')
-                    city_pinyin = ''
-                    if job_area:
-                        # 尝试从城市名获取拼音（简化处理：使用城市名作为路径）
-                        city_pinyin = city.lower()
-                    job_url = f'https://jobs.51job.com/{city_pinyin}/{job_id}.html' if job_id and city_pinyin else f'https://jobs.51job.com/p-x-x-x-x-x-x-x-x-x-x/{job_id}.html' if job_id else ''
+                    job_id = str(j.get('jobId', '') or j.get('jobid', '') or '')
+                    city_pinyin = CITY_PINYIN.get(city, city.lower())
+                    job_url = f'https://jobs.51job.com/{city_pinyin}/{job_id}.html' if job_id and city_pinyin else ''
                     
                     all_jobs.append({
                         'post': title,

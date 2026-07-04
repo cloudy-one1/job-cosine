@@ -316,7 +316,7 @@ def job_detail(job_id):
         'edu': job['edu'],
         'exper': job['exper'],
         'content': job['content'],
-        'job_url': job['job_url']
+        'job_url': job['job_url'] or ''  # 兼容旧数据（NULL 回退为 ''）
     }
 
     return render_template('job_detail.html', job=job_dict, error=None)
