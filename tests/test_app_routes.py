@@ -63,6 +63,79 @@ class TestListPageParamSafety:
 
 
 # ============================================================
+# L-2: /list 精确搜索行为回归测试
+# ============================================================
+class TestListSearchExactMatch:
+    """验证 /list 的 kw/city 参数使用 LOWER() 精确匹配（非 LIKE 模糊）。"""
+
+    @pytest.fixture(autouse=True)
+    def _seed_and_cleanup(self):
+        """插入临时测试记录,测试结束后删除。"""
+        import sqlite3
+        from config import DB_PATH
+        self.db = sqlite3.connect(DB_PATH, timeout=10)
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.executemany(
+            "INSERT INTO data (post, company, address, salary_min, salary_max) VALUES (?, ?, ?, ?, ?)",
+            [
+                ("ZZZ_TEST_Python开发工程师", "TEST_CORP", "ZZZ_TEST_CITY", 10.0, 20.0),
+                ("ZZZ_TEST_Java高级开发工程师", "TEST_CORP", "北京", 15.0, 30.0),
+            ]
+        )
+        self.db.commit()
+        yield
+        self.db.execute("DELETE FROM data WHERE post LIKE 'ZZZ_TEST_%' OR address = 'ZZZ_TEST_CITY'")
+        self.db.commit()
+        self.db.close()
+
+    def test_exact_post_match_finds_record(self, client):
+        """完全正确的岗位名精确匹配,应返回记录。"""
+        resp = client.get('/list?kw=ZZZ_TEST_Python开发工程师')
+        html = resp.data.decode('utf-8')
+        assert resp.status_code == 200
+        assert 'ZZZ_TEST_Python开发工程师' in html
+        assert 'ZZZ_TEST_Java高级开发工程师' not in html  # 不匹配另一个
+
+    def test_case_insensitive_match(self, client):
+        """大小写忽略:小写搜索也能匹配。"""
+        resp = client.get('/list?kw=zzz_test_python开发工程师')
+        html = resp.data.decode('utf-8')
+        assert resp.status_code == 200
+        assert 'ZZZ_TEST_Python开发工程师' in html
+
+    def test_partial_keyword_does_not_match(self, client):
+        """部分关键词不应匹配(不再是 LIKE 模糊搜索)。"""
+        resp = client.get('/list?kw=Python开发工程师')
+        html = resp.data.decode('utf-8')
+        assert resp.status_code == 200
+        assert 'ZZZ_TEST_Python开发工程师' not in html  # 前缀不同不匹配
+
+    def test_exact_city_match(self, client):
+        """城市精确匹配。"""
+        resp = client.get('/list?city=ZZZ_TEST_CITY')
+        html = resp.data.decode('utf-8')
+        assert resp.status_code == 200
+        assert 'ZZZ_TEST_Python开发工程师' in html
+
+    def test_city_partial_not_match(self, client):
+        """城市部分匹配不应生效。"""
+        resp = client.get('/list?city=TEST')
+        html = resp.data.decode('utf-8')
+        assert resp.status_code == 200
+        assert 'ZZZ_TEST_Python开发工程师' not in html
+
+    def test_empty_search_returns_all(self, client):
+        """不带搜索参数,返回所有记录(测试数据至少能查到插入的)。"""
+        resp = client.get('/list')
+        assert resp.status_code == 200
+
+    def test_no_match_returns_empty(self, client):
+        """完全不存在的数据返回空结果不报错。"""
+        resp = client.get('/list?kw=ZZZ_NONEXISTENT_12345')
+        assert resp.status_code == 200
+
+
+# ============================================================
 # H-3+H-4: secret_key 存在性 + CSRF 保护生效
 # ============================================================
 class TestAppSecretAndCSRF:

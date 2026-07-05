@@ -30,13 +30,19 @@
 <p class="eyebrow">案卷 NO. 02 · 数据展示</p>
 <h2 style="margin-bottom:18px;">招聘数据档案</h2>
 
-<form method="get" action="/list" style="margin-bottom:20px; max-width:560px;">
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <input type="text" class="form-control" name="kw" value="{{ kw or '' }}"
-               placeholder="岗位名称,如: python开发工程师" style="flex:1; min-width:200px;">
-        <input type="text" class="form-control" name="city" value="{{ city or '' }}"
-               placeholder="城市,如: 北京,上海" style="flex:1; min-width:160px;">
-        <button class="btn btn-info" type="submit">搜索</button>
+<form method="get" action="/list" style="margin-bottom:20px;">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="form-group" style="flex:1; min-width:200px; margin-bottom:0;">
+            <label>岗位名称</label>
+            <input type="text" class="form-control" name="kw" value="{{ kw or '' }}"
+                   placeholder="如: python开发工程师">
+        </div>
+        <div class="form-group" style="flex:1; min-width:180px; margin-bottom:0;">
+            <label>城市</label>
+            <input type="text" class="form-control" name="city" value="{{ city or '' }}"
+                   placeholder="如: 北京,上海">
+        </div>
+        <button class="btn btn-info" type="submit" style="padding:12px 32px;">🔍 搜索</button>
     </div>
     <p style="margin:6px 0 0 0; font-size:12px; color:var(--ink-soft);">注：精确匹配，请输入完整岗位名称或城市</p>
 </form>

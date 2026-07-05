@@ -5,15 +5,15 @@
 /* ---------- sidebar layout ---------- */
 .chart-layout{ display:flex; gap:24px; align-items:flex-start; }
 .chart-sidebar{
-    width:180px; flex-shrink:0; background:var(--card);
+    width:200px; flex-shrink:0; background:var(--card);
     border:1px solid var(--line); border-radius:8px; overflow:hidden;
-    position:sticky; top:100px;
+    position:sticky; top:88px;
 }
 .chart-sidebar ul{ list-style:none; padding:0; margin:0; }
 .chart-sidebar li{ border-bottom:1px solid var(--line); }
 .chart-sidebar li:last-child{ border-bottom:none; }
 .chart-sidebar li a{
-    display:block; padding:11px 16px; font-size:13px; font-weight:500;
+    display:block; padding:13px 18px; font-size:14px; font-weight:500;
     color:var(--ink-soft); text-decoration:none; transition:.15s ease;
     border-left:3px solid transparent;
 }
@@ -25,7 +25,7 @@
 .chart-main{ flex:1; min-width:0; }
 
 
-@media (max-width:720px){
+@media (max-width:800px){
     .chart-layout{ flex-direction:column; }
     .chart-sidebar{ width:100%; position:static; }
     .chart-sidebar ul{ display:flex; flex-wrap:wrap; }
@@ -57,28 +57,28 @@
 {# ---------- 城市分布 ---------- #}
 {% if section == 'city' %}
 <div class="card" data-no="城市分布">
-    <div id="city_chart" style="width:100%; height:780px;"></div>
+    <div id="city_chart" style="width:100%; height:820px;"></div>
 </div>
 {% endif %}
 
 {# ---------- 薪资分布 ---------- #}
 {% if section == 'salary' %}
 <div class="card" data-no="薪资分布">
-    <div id="salary_chart" style="width:100%; height:460px;"></div>
+    <div id="salary_chart" style="width:100%; height:500px;"></div>
 </div>
 {% endif %}
 
 {# ---------- 学历占比 ---------- #}
 {% if section == 'xueli' %}
 <div class="card" data-no="学历占比">
-    <div id="xueli_chart" style="width:100%; height:460px;"></div>
+    <div id="xueli_chart" style="width:100%; height:520px;"></div>
 </div>
 {% endif %}
 
 {# ---------- 经验占比 ---------- #}
 {% if section == 'jinyan' %}
 <div class="card" data-no="经验占比">
-    <div id="jinyan_chart" style="width:100%; height:460px;"></div>
+    <div id="jinyan_chart" style="width:100%; height:520px;"></div>
 </div>
 {% endif %}
 
@@ -89,23 +89,14 @@
 /* 词云呼吸动画（容器整体） */
 @keyframes wc-breathe {
     0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.05); }
+    50%      { transform: scale(1.04); }
 }
-.wc-word {
-    position: absolute; white-space: nowrap; cursor: default;
-    font-family: "Noto Sans SC", sans-serif; font-weight: 500;
-    transition: color .3s, text-shadow .3s;
-}
-.wc-word:hover {
-    color: #A33B2E !important; font-weight: 700;
-    text-shadow: 0 2px 8px rgba(163,59,46,.25);
-    z-index: 10;
-}
+#wordcloud_chart { animation: wc-breathe 4s ease-in-out infinite; }
 </style>
 <div class="card" data-no="高频热词">
     <div style="display:flex; gap:20px; flex-wrap:wrap;">
-        <div id="wordcloud_container" style="flex:2; min-width:400px; height:620px; position:relative; overflow:hidden; animation:wc-breathe 4s ease-in-out infinite;"></div>
-        <div style="flex:1; min-width:200px; max-height:460px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:13px;">
+        <div id="wordcloud_chart" style="flex:2; min-width:450px; height:700px;"></div>
+        <div style="flex:1; min-width:200px; max-height:700px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:14px;">
             <h4 style="margin:0 0 10px; color:#1C2620; font-size:14px;">🔥 高频技能 TOP 20</h4>
             <table style="width:100%; border-collapse:collapse;">
                 <thead>
@@ -137,10 +128,10 @@
 {% if section == 'cross' %}
 <div>
     <div class="card" data-no="薪资vs经验" style="width:100%; margin-bottom:24px;">
-        <div id="cross_exper_chart" style="width:100%; height:520px;"></div>
+        <div id="cross_exper_chart" style="width:100%; height:540px;"></div>
     </div>
     <div class="card" data-no="薪资vs学历" style="width:100%;">
-        <div id="cross_edu_chart" style="width:100%; height:520px;"></div>
+        <div id="cross_edu_chart" style="width:100%; height:540px;"></div>
     </div>
 </div>
 {% endif %}
@@ -149,6 +140,7 @@
 </div><!-- /.chart-layout -->
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
 // ---------- 主题色 ----------
 const COLORS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A','#1C2620','#C9A96E','#8B4A3A'];
@@ -158,7 +150,7 @@ const SOFT_COLOR = '#5E665A';
 const tip = {
     backgroundColor: '#FBFAF6',
     borderColor: '#D7D9CB',
-    textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 14 },
+    textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 15 },
     extraCssText: 'border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
 };
 
@@ -315,7 +307,7 @@ const tip = {
             echarts.registerMap('china', geoJson);
             chart.setOption({
                 title: { text: '城市职位数量分布', left: 'center', top: 6,
-                         textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+                         textStyle: { fontSize:17, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
                 tooltip: {
                     trigger: 'item',
                     backgroundColor: 'rgba(250,249,245,0.96)',
@@ -429,7 +421,7 @@ const tip = {
                 }),
                 grid: { left: 90, right: 50, top: 50, bottom: 20 },
                 title: { text: '城市职位数量分布（地图加载失败，降级显示）', left: 'center', top: 6,
-                         textStyle: { fontSize:14, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+                         textStyle: { fontSize:15, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
                 xAxis: {
                     type: 'value', name: '职位数',
                     nameTextStyle: { color: SOFT_COLOR, fontSize: 12 },
@@ -514,7 +506,7 @@ const tip = {
         tooltip: Object.assign({}, tip, {
             formatter: function(p){ return '<b>' + p.name + '</b><br/>' + p.value + ' 个职位 (' + p.percent + '%)'; }
         }),
-        title: { text: '学历占比', left: 'center', top: 8, textStyle: { fontSize: 16, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
+        title: { text: '学历占比', left: 'center', top: 8, textStyle: { fontSize: 17, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
         series: [{
             type: 'pie',
             radius: ['0%', '72%'],
@@ -545,7 +537,7 @@ const tip = {
         tooltip: Object.assign({}, tip, {
             formatter: function(p){ return '<b>' + p.name + '</b><br/>' + p.value + ' 个职位 (' + p.percent + '%)'; }
         }),
-        title: { text: '经验要求占比', left: 'center', top: 8, textStyle: { fontSize: 16, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
+        title: { text: '经验要求占比', left: 'center', top: 8, textStyle: { fontSize: 17, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
         series: [{
             type: 'pie',
             radius: ['0%', '72%'],
@@ -567,70 +559,76 @@ const tip = {
 })();
 {% endif %}
 
-// ---------- 高频热词（圆形螺旋，容器整体呼吸） ----------
+// ---------- 高频热词（echarts-wordcloud，圆形布局 + 呼吸） ----------
 {% if section == 'wordcloud' %}
 (function(){
-    var container = document.getElementById('wordcloud_container');
-    if(!container) return;
+    var dom = document.getElementById('wordcloud_chart');
+    if(!dom) return;
     {% if wc_data and wc_data.words %}
-    var words = {{ wc_data.words|tojson }};
+    // 延迟初始化，确保 flex 容器尺寸稳定
+    setTimeout(function(){
+    var chart = echarts.init(dom, null, {width: dom.offsetWidth, height: dom.offsetHeight});
+    var rawWords = {{ wc_data.words|tojson }};
     var CLRS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
                 '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
 
-    // 频率 → 字号映射
-    var maxVal = words[0][1], minVal = words[words.length-1][1];
-    function valToSize(v){ return 14 + Math.round((v - minVal) / Math.max(maxVal-minVal,1) * 36); }
-
-    // 圆形螺旋布局
-    var goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    function layoutSpiral(W, H) {
-        var cx = W / 2, cy = H / 2;
-        var maxR = Math.min(W, H) * 0.48;
-        var maxI = Math.max(words.length - 1, 1);
-        var coeff = maxR / Math.sqrt(maxI);
-        var items = [];
-        for (var i = 0; i < words.length; i++) {
-            var angle = i * goldenAngle;
-            var radius = Math.sqrt(i) * coeff;
-            var x = cx + Math.cos(angle) * radius;
-            var y = cy + Math.sin(angle) * radius;
-            items.push({
-                text: words[i][0],
-                size: valToSize(words[i][1]),
-                x: x, y: y,
-                color: CLRS[i % CLRS.length]
-            });
-        }
-        return items;
-    }
-
-    var items = layoutSpiral(container.clientWidth, container.clientHeight);
-
-    function renderItems(list) {
-        var frag = document.createDocumentFragment();
-        for (var k = 0; k < list.length; k++) {
-            var it = list[k];
-            var span = document.createElement('span');
-            span.className = 'wc-word';
-            span.textContent = it.text;
-            span.style.cssText =
-                'left:' + it.x + 'px;' +
-                'top:' + it.y + 'px;' +
-                'font-size:' + it.size + 'px;' +
-                'color:' + it.color + ';' +
-                'transform:translate(-50%,-50%);';
-            frag.appendChild(span);
-        }
-        container.appendChild(frag);
-    }
-    renderItems(items);
-
-    // 窗口缩放时重排
-    window.addEventListener('resize', function(){
-        container.innerHTML = '';
-        items = layoutSpiral(container.clientWidth, container.clientHeight);
-        renderItems(items);
+    var data = rawWords.map(function(item, i){
+        return {
+            name: item[0],
+            value: item[1],
+            textStyle: {
+                color: CLRS[i % CLRS.length],
+                fontFamily: "'Noto Sans SC', sans-serif"
+            }
+        };
     });
+
+    var option = {
+        tooltip: {
+            show: true,
+            backgroundColor: '#FBFAF6',
+            borderColor: '#D7D9CB',
+            textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 15 },
+            formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
+        },
+        series: [{
+            type: 'wordCloud',
+            shape: 'circle',
+            left: 'center',
+            top: 'center',
+            width: '100%',
+            height: '100%',
+            sizeRange: [30, 120],
+            rotationRange: [-25, 25],
+            rotationStep: 10,
+            gridSize: 4,
+            layoutAnimation: true,
+            keepAspect: false,
+            drawOutOfBound: false,
+            animation: true,
+            animationDuration: 2000,
+            animationEasing: 'elasticOut',
+            textStyle: {
+                fontFamily: "'Noto Sans SC', sans-serif",
+                fontWeight: 'normal'
+            },
+            emphasis: {
+                focus: 'self',
+                scale: true,
+                textStyle: {
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(0,0,0,.25)',
+                    fontWeight: 'bold'
+                }
+            },
+            data: data
+        }]
+    };
+
+    chart.setOption(option);
+    chart.resize();
+    window.addEventListener('resize', function(){ chart.resize(); });
+    }, 100);
     {% endif %}
 })();
 {% endif %}
@@ -659,7 +657,7 @@ const tip = {
                 return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
             }
         }),
-        title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:17, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
         legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
         grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {
@@ -714,7 +712,7 @@ const tip = {
                 return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
             }
         }),
-        title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:17, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
         legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
         grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {

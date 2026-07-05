@@ -7,8 +7,8 @@
         display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 24px;
     }
     .tab-btn {
-        font-family: 'Noto Sans SC', sans-serif; font-size: 14px; font-weight: 600;
-        padding: 10px 24px; border: none; border-bottom: 3px solid transparent;
+        font-family: 'Noto Sans SC', sans-serif; font-size: 16px; font-weight: 600;
+        padding: 12px 28px; border: none; border-bottom: 3px solid transparent;
         background: transparent; color: var(--ink-soft); cursor: pointer;
         transition: .15s ease; margin-bottom: -2px;
     }
@@ -25,18 +25,18 @@
     }
     .compare-card {
         background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-        padding: 20px; position: relative;
+        padding: 24px; position: relative;
     }
     .compare-card .card-label {
         font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .06em;
         color: var(--ink-soft); text-transform: uppercase; margin-bottom: 8px;
     }
     .compare-card .card-value {
-        font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 20px;
+        font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 24px;
         color: var(--ink); margin-bottom: 14px;
     }
     .compare-stat { display: flex; justify-content: space-between; padding: 6px 0;
-        border-bottom: 1px solid var(--line); font-size: 13px; }
+        border-bottom: 1px solid var(--line); font-size: 14px; }
     .compare-stat .stat-label { color: var(--ink-soft); }
     .compare-stat .stat-value { font-weight: 600; }
 </style>
@@ -49,7 +49,7 @@
     </div>
 </div>
 <p style="color:var(--ink-soft); max-width:560px; margin-bottom:24px;">
-    综合 Agent 为你分析求职方向，也可直接使用城市对比和技能提取工具。
+    综合 Agent 为你分析求职方向，也可直接使用城市对比工具。
 </p>
 
 <!-- ====== Tab 切换栏 ====== -->
@@ -69,13 +69,15 @@
         <form method="post" action="/advice">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="tool" value="agent">
-            <div class="form-group">
-                <label>描述一下你的技能 / 想了解的方向</label>
-                <input type="text" class="form-control" name="question"
-                       placeholder="比如：我会Python爬虫，想了解一下这个方向的就业行情"
-                       value="{{ question or '' }}">
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:280px;">
+                    <label>描述一下你的技能 / 想了解的方向</label>
+                    <input type="text" class="form-control" name="question"
+                           placeholder="比如：我会Python爬虫，想了解一下这个方向的就业行情"
+                           value="{{ question or '' }}">
+                </div>
+                <button type="submit" class="btn btn-info" style="align-self:flex-end; padding:12px 28px;">向 Agent 提问</button>
             </div>
-            <button type="submit" class="btn btn-info">向 Agent 提问</button>
         </form>
     </div>
 
@@ -93,7 +95,7 @@
         {% for step in trace %}
         <div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line);">
             <div class="mono" style="color:var(--brass); font-size:12px; flex-shrink:0; width:40px;">#{{ step.step }}</div>
-            <div style="font-size:13.5px; line-height:1.7;">
+            <div style="font-size:14.5px; line-height:1.7;">
                 {% if step.type == 'action' %}
                     调用工具 <span class="mono" style="color:var(--teal);">{{ step.tool }}</span>
                     参数 <span class="mono">{{ step.input }}</span><br>
@@ -119,30 +121,28 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="tool" value="compare">
 
-            <div class="form-group">
-                <label>对比维度</label>
-                <select class="form-control" name="dim_type">
-                    <option value="city" {% if compare_dim_type == 'city' %}selected{% endif %}>按城市</option>
-                    <option value="category" {% if compare_dim_type == 'category' %}selected{% endif %}>按职位类别</option>
-                </select>
-            </div>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div class="form-group">
+            <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+                <div class="form-group" style="flex:1; min-width:140px;">
+                    <label>对比维度</label>
+                    <select class="form-control" name="dim_type">
+                        <option value="city" {% if compare_dim_type == 'city' %}selected{% endif %}>按城市</option>
+                        <option value="category" {% if compare_dim_type == 'category' %}selected{% endif %}>按职位类别</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1; min-width:160px;">
                     <label>对比项 A</label>
                     <input type="text" class="form-control" name="a"
                            placeholder="例如：北京 或 后端开发"
                            value="{{ compare_a or '' }}">
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="flex:1; min-width:160px;">
                     <label>对比项 B</label>
                     <input type="text" class="form-control" name="b"
-                           placeholder="例如：上海 或 Web开发"
+                           placeholder="例如：上海 或 Web/前端"
                            value="{{ compare_b or '' }}">
                 </div>
+                <button type="submit" class="btn btn-info" style="padding:12px 28px; align-self:flex-end;">开始对比</button>
             </div>
-
-            <button type="submit" class="btn btn-info">开始对比</button>
         </form>
     </div>
 

@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 
+<style>
+.dir-card{
+    transition: transform .2s ease, box-shadow .2s ease !important;
+    will-change: transform;
+}
+.dir-card:hover{
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 16px 34px rgba(28,38,32,0.14);
+}
+</style>
+
 <p class="eyebrow">案卷 NO. 04 · 机器学习分析</p>
-<h2 style="margin-bottom:6px;">数据驱动的岗位聚类与薪资预测</h2>
-<p style="color:var(--ink-soft); max-width:760px; margin-bottom:24px;">
-    左侧使用 KMeans 对岗位描述做技能向量聚类(k={{ clustering.k if clustering else '-' }},由轮廓系数自动选出)，
-    右侧用城市+类别+学历+经验训练三模型对比。聚类不预设类别，完全由数据本身决定分组。
-</p>
+<h2 style="margin-bottom:24px; font-size:28px;">数据驱动的岗位聚类与薪资预测</h2>
 
 {% if not clustering %}
 <div class="card" data-no="提示">
@@ -45,25 +52,19 @@
 </div>
 
 <!-- 模型对比 -->
-<h2 style="margin-top:36px; margin-bottom:6px;">三模型预测效果对比</h2>
-<p style="color:var(--ink-soft); max-width:760px; margin-bottom:18px;">
-    基线仅用城市+类别；线性回归与随机森林额外使用学历+经验。R² 越接近 1 越好，MAE(千元)越低越好。
-</p>
+<h2 style="margin-top:36px; margin-bottom:18px;">三模型预测效果对比</h2>
 <div class="card" data-no="模型对比" style="margin-bottom:20px;">
     <div style="display:flex; gap:24px; flex-wrap:wrap;">
-        <div id="model_r2_chart" style="flex:1; min-width:420px; height:420px;"></div>
-        <div id="model_mae_chart" style="flex:1; min-width:420px; height:420px;"></div>
+        <div id="model_r2_chart" style="flex:1; min-width:420px; height:440px;"></div>
+        <div id="model_mae_chart" style="flex:1; min-width:420px; height:440px;"></div>
     </div>
 </div>
 
 <!-- 方向详情 -->
-<h2 style="margin-top:36px; margin-bottom:6px;">方向详情</h2>
-<p style="color:var(--ink-soft); max-width:760px; margin-bottom:18px;">
-    每个方向展示岗位数、平均薪资区间及代表性技能关键词。
-</p>
+<h2 style="margin-top:36px; margin-bottom:18px;">方向详情</h2>
 <div style="display:flex; gap:18px; flex-wrap:wrap;">
     {% for c in clustering.clusters %}
-    <div class="card" style="flex:1 1 300px; min-width:280px; padding:20px 22px 18px; transition: box-shadow .2s;">
+    <div class="card dir-card" style="flex:1 1 300px; min-width:280px; padding:20px 22px 18px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
             <h4 style="margin:0; font-size:16px; color:var(--ink);">{{ c.auto_label }}</h4>
             <span class="mono" style="font-size:13px; color:var(--stamp); font-weight:700;">{{ c.count }} 岗</span>
@@ -89,28 +90,28 @@
 {% endif %}
 
 <!-- 薪资预测 -->
-<h2 style="margin-top:36px; margin-bottom:6px;">薪资预测</h2>
+<h2 style="margin-top:36px; margin-bottom:18px;">薪资预测</h2>
 <div class="card" data-no="预测">
     {% if model_ready %}
     <form action="/predict" method="post" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="flex:1; min-width:160px;">
-            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">城市</label>
+            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">城市</label>
             <input type="text" name="city" class="form-control" placeholder="如：北京" value="{{ request.form.city or '' }}" required>
         </div>
         <div style="flex:1; min-width:160px;">
-            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">职位类别</label>
+            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">职位类别</label>
             <input type="text" name="category" class="form-control" placeholder="如：后端开发" value="{{ request.form.category or '' }}" required>
         </div>
         <div style="flex:1; min-width:140px;">
-            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">学历</label>
+            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">学历</label>
             <input type="text" name="edu" class="form-control" placeholder="默认：不限" value="{{ request.form.edu or '' }}">
         </div>
         <div style="flex:1; min-width:140px;">
-            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">经验</label>
+            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">经验</label>
             <input type="text" name="exper" class="form-control" placeholder="默认：经验不限" value="{{ request.form.exper or '' }}">
         </div>
-        <button type="submit" class="btn btn-primary">开始预测</button>
+        <button type="submit" class="btn btn-info" style="padding:12px 28px;">开始预测</button>
     </form>
 
     {% if predict_error %}

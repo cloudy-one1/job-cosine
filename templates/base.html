@@ -22,8 +22,8 @@
         html{ scroll-behavior:smooth; }
         body{
             margin:0; background:var(--paper); color:var(--ink);
-            font-family:'Noto Sans SC',sans-serif; font-size:15px; line-height:1.65;
-            padding-top:84px;
+            font-family:'Noto Sans SC',sans-serif; font-size:16px; line-height:1.65;
+            padding-top:72px;
         }
         a{ color:var(--teal); text-decoration:none; }
         a:hover{ color:var(--stamp); }
@@ -45,7 +45,7 @@
             background:var(--card); border-bottom:1px solid var(--line); padding:0;
         }
         .navbar .container{
-            max-width:1480px; margin:0 auto; padding:14px 28px;
+            max-width:1560px; margin:0 auto; padding:12px 36px;
             display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
         }
         .navbar-header{ display:flex; flex-direction:column; }
@@ -63,20 +63,20 @@
             font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.12em;
             color:var(--ink-soft); text-transform:uppercase; margin-top:3px; margin-left:40px;
         }
-        ul.nav.navbar-nav{ list-style:none; display:flex; gap:24px; margin:0; padding:0; flex-wrap:wrap; }
+        ul.nav.navbar-nav{ list-style:none; display:flex; gap:28px; margin:0; padding:0; flex-wrap:wrap; }
         ul.nav.navbar-nav li a{
-            color:var(--ink-soft); font-weight:500; font-size:14px;
+            color:var(--ink-soft); font-weight:500; font-size:15px;
             padding:6px 0; border-bottom:2px solid transparent; display:inline-block;
         }
         ul.nav.navbar-nav li a:hover{ color:var(--ink); border-bottom-color:var(--stamp); }
 
         /* ---------- layout ---------- */
-        .container-main{ max-width:1480px; margin:0 auto; padding:34px 28px 70px; }
+        .container-main{ max-width:1560px; margin:0 auto; padding:44px 48px 70px; }
 
         /* ---------- card / ledger record ---------- */
         .card, .well{
             background:var(--card); border:1px solid var(--line); border-radius:8px;
-            padding:28px 30px; position:relative; margin-bottom:10px;
+            padding:32px 36px; position:relative; margin-bottom:10px;
         }
         .card[data-no]::before, .well[data-no]::before{
             content:attr(data-no); position:absolute; top:-11px; left:24px;
@@ -97,7 +97,7 @@
         /* ---------- buttons ---------- */
         .btn{
             display:inline-block; font-family:'Noto Sans SC',sans-serif; font-weight:600;
-            font-size:14px; padding:10px 20px; border-radius:6px; border:1px solid var(--ink);
+            font-size:15px; padding:11px 24px; border-radius:6px; border:1px solid var(--ink);
             background:transparent; color:var(--ink); cursor:pointer; transition:.15s ease;
         }
         .btn:hover{ background:var(--ink); color:var(--paper); }
@@ -107,12 +107,12 @@
 
         /* ---------- forms ---------- */
         .form-control{
-            width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:6px;
-            background:#fff; font-family:'Noto Sans SC',sans-serif; font-size:14px; color:var(--ink);
+            width:100%; padding:12px 16px; border:1px solid var(--line); border-radius:6px;
+            background:#fff; font-family:'Noto Sans SC',sans-serif; font-size:15px; color:var(--ink);
         }
         .form-control:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-soft); }
         .form-group{ margin-bottom:16px; }
-        .form-group label{ display:block; font-size:13px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+        .form-group label{ display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px; font-weight:600; }
         .input-group{ display:flex; }
         .input-group .form-control{ border-radius:6px 0 0 6px; }
         .input-group-btn .btn{ border-radius:0 6px 6px 0; border-left:none; }
@@ -122,15 +122,15 @@
         .table th{
             text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px;
             letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);
-            border-bottom:2px solid var(--ink); padding:10px 12px;
+            border-bottom:2px solid var(--ink); padding:12px 14px;
         }
-        .table td{ padding:11px 12px; border-bottom:1px solid var(--line); font-size:14px; }
+        .table td{ padding:12px 14px; border-bottom:1px solid var(--line); font-size:15px; }
         .table-bordered td, .table-bordered th{ border:1px solid var(--line); }
         .table-bordered th{ border-bottom:2px solid var(--ink); }
         .table-striped tr:nth-child(even) td{ background:var(--paper); }
 
         /* ---------- alerts ---------- */
-        .alert{ padding:14px 18px; border-radius:6px; border-left:4px solid; font-size:14px; }
+        .alert{ padding:14px 18px; border-radius:6px; border-left:4px solid; font-size:15px; }
         .alert-danger{ background:#FBEAE7; border-color:var(--stamp); color:#7A2A20; }
         .alert-info{ background:var(--teal-soft); border-color:var(--teal); color:#1D4F42; }
 
@@ -141,7 +141,7 @@
         }
 
         /* ---------- responsive ---------- */
-        @media (max-width:720px){
+        @media (max-width:800px){
             body{ padding-top:108px; }
             .card, .well{ padding:20px 18px; }
         }

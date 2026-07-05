@@ -29,7 +29,7 @@
 | 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类 + 线性回归/随机森林薪资预测(三模型对比);模型结果缓存避免重复训练 |
 | AI Agent | 自研轻量 Agent + **DeepSeek API** | 基于采集数据+模型结果，输出个性化求职建议；密钥从 `.env` 读 |
 | 部署 | **Docker + docker-compose** | 容器内只跑 Web + ML + Agent，Playwright 爬虫在宿主机运行（体积原因）；volume 挂载 `data.db` + 源码热更新 |
-| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 160 个用例，覆盖率 > 90% |
+| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 167 个用例，覆盖率 > 90% |
 | 启动方式 | `python app.py`（venv 本机）或 `docker compose up -d` | Debug 开关由根目录 `.debug` 文件存在与否决定（不是 FLASK_DEBUG 环境变量） |
 
 ---
@@ -284,7 +284,7 @@ git push                                 # develop 直接推
 ## 10. 最近变更记录（Changelog 摘要）
 
 - 2026-07-05 · `refactor: advice 页面移除技能关键词提取 tab（与图表页词云功能重叠）`
-- 2026-07-05 · `feat: 职位分类与技能提取全面数据驱动化，支持任意行业岗位采集后自动适配`
+- 2026-07-05 · `feat: 数据展示页岗位悬停放大特效 + 岗位详情按钮交互 + 精确检索替代模糊匹配`
 - 2026-07-05 · `chore: ARCHITECTURE.md 并入 CODEBUDDY.md，统一为单一真相来源`
 - 2026-07-04 · `test: 新增 test_agent_tools.py(11) + test_cross.py(11) + RF/cache 测试(7),覆盖 compare_jobs/extract_skills/交叉分析/RF训练/缓存;全量 126 passed`
 - 2026-07-04 · `feat: 薪资预测新增 RandomForest 对比模型(三模型对比)、Agent 新增 compare_jobs/extract_skills 工具、图表页新增薪资vs经验/学历交叉分析图`
@@ -325,6 +325,7 @@ git push                                 # develop 直接推
 ### 11.4 关键代码位置
 
 ```
+app.py:265-275    → /list 搜索逻辑（LOWER() 精确匹配，忽略大小写）
 app.py:482-483    → Debug 开关逻辑（.debug 文件）
 app.py:190-203    → 模型懒加载（_get_clustering）
 app.py:254-264    → /chart 路由（每次实时计算）

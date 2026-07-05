@@ -138,7 +138,7 @@ def compare_jobs(dim_type: str, a: str, b: str) -> dict:
 
     参数:
         dim_type: 'city' 按城市对比, 'category' 按类别对比。
-        a, b: 要对比的两个值,如 a='北京' b='上海',或 a='后端开发' b='Web开发'。
+        a, b: 要对比的两个值,如 a='北京' b='上海',或 a='后端开发' b='Web/前端'。
     """
     db = _connect()
     cursor = db.cursor()
@@ -178,214 +178,6 @@ def compare_jobs(dim_type: str, a: str, b: str) -> dict:
         'b': _side(b),
     }
 
-
-def extract_skills(keyword: str = '', top_n: int = 15) -> dict:
-    """从职位标题/内容中提取高频技能关键词(正则+分词混合)。
-
-    参数:
-        keyword: 可选,筛选包含该关键词的职位标题后提取;留空则从全部职位提取。
-        top_n: 返回前 N 个高频词,默认 15。
-    """
-    import jieba
-    import re
-
-    # ========== 专业技能关键词库(正则精确匹配,跨行业) ==========
-    _TECH_TERMS = [
-        # 编程语言
-        'Python', 'Java', 'C++', 'C#', 'JavaScript', 'TypeScript',
-        'Rust', 'Kotlin', 'Swift', 'PHP', 'Ruby', 'Scala', 'Dart',
-        'Matlab', 'R语言', 'Shell', 'Lua', 'Perl',
-        # 前端
-        'Vue', 'React', 'Angular', 'Node.js', 'Next.js', 'Nuxt',
-        'Webpack', 'Vite', 'HTML5', 'CSS3', 'Sass', 'Less',
-        'Bootstrap', 'jQuery', 'TypeScript', '小程序', 'H5',
-        # 后端框架
-        'Django', 'Flask', 'FastAPI', 'Spring', 'SpringBoot',
-        'SpringCloud', 'MyBatis', 'Hibernate', '.NET', 'ASP.NET',
-        'Express', 'NestJS', 'Tornado', 'Laravel',
-        # 数据库
-        'MySQL', 'PostgreSQL', 'MongoDB', 'Redis', 'Oracle',
-        'Elasticsearch', 'SQLite', 'SQL Server', 'Cassandra',
-        'Neo4j', 'ClickHouse', 'TDengine',
-        # 大数据
-        'Hadoop', 'Spark', 'Flink', 'Kafka', 'Hive', 'HBase',
-        'Airflow', 'ETL', '数据仓库', '数据湖', 'MapReduce',
-        # 云原生 DevOps
-        'Docker', 'Kubernetes', 'K8s', 'Jenkins', 'GitLab', 'CI/CD',
-        'AWS', 'Azure', '阿里云', '腾讯云', '华为云',
-        'Nginx', 'Tomcat', 'Linux', 'Unix', 'Zabbix', 'Prometheus',
-        # AI/ML
-        'TensorFlow', 'PyTorch', '机器学习', '深度学习', 'NLP', 'CV',
-        'OpenCV', 'scikit-learn', 'Keras', 'Pandas', 'NumPy',
-        '大模型', 'LLM', 'RAG', 'LangChain', 'Transformer',
-        # 嵌入式/硬件
-        'PLC', '单片机', 'STM32', 'ARM', 'FPGA', 'DSP', 'MCU',
-        '嵌入式', 'RTOS', 'FreeRTOS', 'RT-Thread', 'PCB',
-        'Altium', 'Cadence', '西门子', '三菱', '欧姆龙', '施耐德', 'ABB',
-        '触摸屏', 'HMI', 'SCADA', '伺服', '变频器', '步进电机',
-        'RS485', 'RS232', 'CAN总线', 'Modbus', 'EtherCAT', 'Profinet',
-        # 电气/自动化
-        '电气', '自动化', '上位机', '下位机', '工控', 'DCS',
-        'CAD', 'SolidWorks', 'UG', 'Pro/E', 'CATIA', 'Eplan',
-        'EPLAN', 'AutoCAD', '仿真', 'LabVIEW', 'Matlab',
-        # 数据分析
-        'Tableau', 'PowerBI', 'Power BI', 'FineBI', 'SPSS', 'SAS',
-        '数据挖掘', '数据分析', '可视化', '统计学',
-        # 测试
-        'Selenium', 'Appium', 'JMeter', 'Postman', 'Cypress',
-        '自动化测试', '性能测试', '接口测试', '单元测试',
-        # 通用技能
-        'Git', 'SVN', 'RESTful', 'API', '微服务', '分布式',
-        '高并发', '敏捷', 'Scrum', '多线程', 'MES', 'ERP', 'WMS',
-        'ROS', 'SLAM', 'AGV', '机器视觉', 'Halcon',
-        # ===== 财务管理 =====
-        '金蝶', '用友', 'SAP', 'Oracle财务', 'QuickBooks',
-        '财务报表', '总账', '应收应付', '成本核算', '预算管理',
-        '纳税申报', '税务筹划', '审计准则', '会计准则', '内控',
-        # ===== 人力资源 =====
-        '招聘', '培训', '绩效考核', '薪酬管理', '社保公积金',
-        '员工关系', '组织发展', '人才盘点', '胜任力模型',
-        # ===== 销售/市场 =====
-        'CRM', '客户关系管理', '销售漏斗', '谈判技巧',
-        '市场调研', '品牌推广', '活动策划', '竞品分析',
-        # ===== 设计创意 =====
-        'Photoshop', 'Illustrator', 'Figma', 'Sketch',
-        'After Effects', 'Premiere', 'InDesign', 'CorelDRAW',
-        'Blender', '3ds Max', 'Maya', 'Cinema 4D',
-        'Rhino', 'SketchUp', 'Axure', '蓝湖',
-        # ===== 医疗/制药 =====
-        'GMP', 'GSP', 'FDA', 'NMPA', '临床研究',
-        '医疗器械', '药典', '制剂', '药理',
-        # ===== 法律法务 =====
-        '合同法', '公司法', '劳动法', '诉讼法', '仲裁',
-        '知识产权法', '专利', '商标', '尽调',
-        # ===== 教育培训 =====
-        '教案', '课件', '班级管理', '课程设计', '教学设计',
-        # ===== 传媒 =====
-        '公众号', '抖音', '快手', '短视频', '直播运营',
-        '拍摄', '脚本', '编导', '后期制作',
-        # ===== 物流/制造 =====
-        'WMS', 'TMS', '精益生产', '6S', '5S',
-        'ISO9001', 'ISO13485', '六西格玛', '看板管理',
-        # ===== 通用技能 =====
-        '项目管理', '时间管理', '沟通协调', '团队管理',
-        '数据分析', 'Excel', 'PPT', 'Word', 'Outlook',
-        '英语', '日语', '韩语', '德语', '法语',
-    ]
-    _tech_re = re.compile(
-        '|'.join(re.escape(t) for t in sorted(_TECH_TERMS, key=len, reverse=True)),
-        re.IGNORECASE,
-    )
-
-    # ========== 停用词(职位后缀/城市/公司/福利/无意义词) ==========
-    _stop_words = {
-        # 职位后缀/级别
-        '工程师', '高级', '中级', '初级', '资深', '实习', '助理',
-        '主管', '经理', '总监', '架构师', '专家', '顾问',
-        '开发', '技术', '岗位', '方向', '相关',
-        # 城市/地区名
-        '北京', '上海', '广州', '深圳', '杭州', '南京', '苏州',
-        '成都', '武汉', '西安', '重庆', '天津', '长沙', '合肥',
-        '厦门', '福州', '郑州', '济南', '青岛', '大连', '沈阳',
-        '无锡', '宁波', '东莞', '珠海', '佛山',
-        '朝阳', '海淀', '浦东', '天河', '南山', '福田', '宝安',
-        # 公司名常见后缀
-        '科技', '信息', '集团', '有限', '公司', '技术',
-        # 招聘无意义词
-        '职位', '描述', '要求', '工作', '负责', '提供', '福利', '待遇',
-        '五险一金', '周末双休', '餐补', '房补', '绩效', '奖金', '年终奖',
-        '节日福利', '员工旅游', '带薪年假', '上升空间', '发展前景',
-        '薪资', '面议', '全职', '学历', '经验', '双休', '单休',
-        '行业', '技术员', '出差', '办公', '环境', '交通', '便利',
-        '团队', '氛围', '培训', '晋升', '优秀', '良好', '具备',
-        # 连接词/助词
-        '的', '和', '及', '与', '等', '有', '在', '为', '或', '是',
-        '了', '不', '可', '能', '会', '要', '将', '对', '从', '到',
-        # 年限/数字
-        '1-3', '3-5', '5-10', '一年', '三年', '五年', '以上', '以下',
-        '不限', '若干', '若干年', '应届',
-    }
-
-    db = _connect()
-    cursor = db.cursor()
-    # 尝试读取 content 列(兼容旧表可能没有此列的情况)
-    has_content = True
-    try:
-        if keyword:
-            cursor.execute(
-                "SELECT post, content FROM data WHERE post LIKE ?",
-                (f'%{keyword}%',)
-            )
-        else:
-            cursor.execute("SELECT post, content FROM data")
-    except sqlite3.OperationalError:
-        has_content = False
-        if keyword:
-            cursor.execute(
-                "SELECT post FROM data WHERE post LIKE ?",
-                (f'%{keyword}%',)
-            )
-        else:
-            cursor.execute("SELECT post FROM data")
-    raw_rows = cursor.fetchall()
-    db.close()
-
-    # 统一整理为 (post, content) 的格式
-    rows = [(r[0], r[1] if has_content and len(r) > 1 else '') for r in raw_rows]
-
-    if not rows:
-        return {'keyword': keyword, 'total_jobs': 0,
-                'skills': [], 'message': '未找到匹配的职位'}
-
-    all_words = []
-    for post, content in rows:
-        post = post or ''
-        content = content or ''
-        # 拼接标题+内容作为分析文本
-        text = f"{post} {content}"
-
-        # 1) 正则匹配技术关键词
-        for m in _tech_re.finditer(text):
-            all_words.append(m.group().lower())
-
-        # 2) jieba 分词补充(对未被正则覆盖的2-4字中文片段做补充)
-        words = jieba.cut(post)  # 标题分词
-        for w in words:
-            w = w.strip()
-            if len(w) < 2:
-                continue
-            if w in _stop_words:
-                continue
-            # 已经通过正则捕获的不重复计算
-            # (这里简单判断: 纯英文/数字大概率已被正则命中,只补充中文)
-            if re.search(r'[\u4e00-\u9fff]', w):
-                # 过滤纯无意义中文短词(如"一名""我方"等)
-                if len(w) <= 4 and re.match(r'^[\u4e00-\u9fff]{2,4}$', w):
-                    all_words.append(w)
-
-        if content:
-            words_c = jieba.cut(content)
-            for w in words_c:
-                w = w.strip()
-                if len(w) < 2 or w in _stop_words:
-                    continue
-                all_words.append(w)
-
-    counter = Counter(all_words)
-
-    # 去噪: 过滤掉只出现1次的词(通常是噪音)
-    skills = [{'skill': w, 'count': c} for w, c in counter.most_common(top_n * 3)
-              if c >= 2][:top_n]
-
-    # 如果关键词过滤后结果太少,降低阈值重试
-    if len(skills) < 5:
-        skills = [{'skill': w, 'count': c} for w, c in counter.most_common(top_n)]
-
-    return {
-        'keyword': keyword or '全部',
-        'total_jobs': len(rows),
-        'skills': skills,
-    }
 
 
 # 工具注册表,agent 循环通过该表解析工具名称并构建系统提示中的工具列表
@@ -431,8 +223,8 @@ if __name__ == '__main__':
     print('\n=== city_overview() ===')
     for item in city_overview():
         print(item)
-    print('\n=== predict_salary("北京", "爬虫工程师", "本科", "3-5年") ===')
-    print(predict_salary('北京', '爬虫工程师', '本科', '3-5年'))
+    print('\n=== predict_salary("北京", "爬虫/采集", "本科", "3-5年") ===')
+    print(predict_salary('北京', '爬虫/采集', '本科', '3-5年'))
     print('\n=== edu_overview() ===')
     print(edu_overview())
     print('\n=== exper_overview() ===')

@@ -68,7 +68,7 @@ project1/
 │
 ├── agent/                    # Agent 层：大模型对话
 │   ├── agent_core.py            — 手写 ReAct 推理循环 (Reason + Act)
-│   └── agent_tools.py           — 工具注册与查询函数 (8 个可调用工具)
+│   └── agent_tools.py           — 工具注册与查询函数 (7 个可调用工具)
 │
 ├── templates/                # HTML 模板 (8 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
@@ -76,7 +76,7 @@ project1/
 │   ├── ml.html (规则vs聚类对比图+城市分布图)
 │   ├── advice.html, collect.html
 │
-├── tests/                    # 测试 (160 个用例, 全部通过)
+├── tests/                    # 测试 (167 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试 (10 个用例: CSRF / 页码校验 / 采集口令 / 限流)
 │   ├── test_advice_route.py     — advice 2-tab 功能测试 (12 个用例: Agent/对比 GET+POST / 边界)
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
@@ -148,7 +148,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import train_and_evaluate; print(train_and_evaluate())"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (154 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (167 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）

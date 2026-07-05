@@ -4,10 +4,11 @@
 <div class="fade-up" style="text-align:center; padding:40px 0 26px;">
     <div class="stamp" style="margin:0 auto 22px;">COSINE</div>
     <p class="eyebrow">Recruitment Intelligence Ledger · 案卷 2026-PY</p>
-    <h1 style="font-size:32px;">招聘信息实时数据分析系统</h1>
+    <h1 style="font-size:38px;">招聘信息实时数据分析系统</h1>
+    <p style="color:var(--ink-soft); font-size:15px; max-width:660px; margin:8px auto 0;">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
 </div>
 
-<div class="card fade-up" data-no="NO. 01 · 查询 / 采集入口" style="max-width:680px; margin:30px auto;">
+<div class="card fade-up" data-no="NO. 01 · 查询 / 采集入口" style="max-width:960px; margin:30px auto;">
     <form id="mainForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
@@ -21,44 +22,46 @@
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:14px 16px;
                         background:#fafafa; border:1px solid #ddd; border-radius:8px;">
                 <select id="provinceSelect"
-                    style="font-size:15px; padding:8px 12px; border:1px solid #ccc; border-radius:6px;
-                           background:#fff; min-width:140px; cursor:pointer;">
+                    style="font-size:15px; padding:9px 14px; border:1px solid #ccc; border-radius:6px;
+                           background:#fff; flex:1; min-width:140px; cursor:pointer;">
                     <option value="">← 选择省份</option>
                 </select>
                 <span style="color:#aaa; font-size:18px; user-select:none;">›</span>
                 <select id="citySelect" disabled
-                    style="font-size:15px; padding:8px 12px; border:1px solid #ccc; border-radius:6px;
-                           background:#fff; min-width:160px; cursor:pointer;">
+                    style="font-size:15px; padding:9px 14px; border:1px solid #ccc; border-radius:6px;
+                           background:#fff; flex:1; min-width:160px; cursor:pointer;">
                     <option value="">先选省份 →</option>
                 </select>
                 <button type="button" id="addCityBtn" disabled
-                    style="font-size:14px; font-weight:600; padding:8px 20px; border:none;
+                    style="font-size:15px; font-weight:600; padding:9px 24px; border:none;
                            background:var(--accent,#4a7c59); color:#fff; border-radius:6px; cursor:pointer;
                            white-space:nowrap; transition:opacity .2s;"
                     onmouseover="this.disabled||(this.style.opacity='0.85')"
-                    onmouseout="this.style.opacity='1'">＋ 添加</button>
+                    onmouseout="this.style.opacity='1'">＋ 添加城市</button>
             </div>
 
             <!-- 已选城市标签区 -->
             <div id="selectedCitiesWrap"
                  style="margin-top:10px; display:none;">
-                <div style="font-size:13px; color:#666; margin-bottom:8px;">已选城市：</div>
+                <div style="font-size:14px; color:#666; margin-bottom:8px;">已选城市：</div>
                 <div id="selectedCities"
                      style="display:flex; flex-wrap:wrap; gap:8px;"></div>
             </div>
             <input type="hidden" name="city" id="cityHidden">
         </div>
 
-        <div class="form-group">
-            <label>排序方式(仅"立即实时采集"生效)</label>
-            <select class="form-control" name="sort_type" style="max-width:240px; font-size:15px;">
-                <option value="0">按相关性排序</option>
-                <option value="1">最新发布</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>实时采集页数(仅"立即实时采集"生效,1~5)</label>
-            <input type="number" class="form-control" name="pages" value="2" min="1" max="5" style="max-width:140px; font-size:15px;">
+        <div style="display:flex; gap:18px; flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:180px;">
+                <label>排序方式(仅"立即实时采集"生效)</label>
+                <select class="form-control" name="sort_type" style="font-size:15px;">
+                    <option value="0">按相关性排序</option>
+                    <option value="1">最新发布</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1; min-width:180px;">
+                <label>实时采集页数(仅"立即实时采集"生效,1~5)</label>
+                <input type="number" class="form-control" name="pages" value="2" min="1" max="5" style="font-size:15px;">
+            </div>
         </div>
         {% if collect_token_required %}
         <div class="form-group">
@@ -72,16 +75,16 @@
             <button type="submit" formaction="/collect" formmethod="post"
                     class="btn btn-info" style="flex:1; padding:12px; font-size:15px;">立即实时采集</button>
         </div>
-        <p style="color:var(--ink-soft); font-size:13px; margin-top:12px; margin-bottom:0; line-height:1.5;">
+        <p style="color:var(--ink-soft); font-size:14px; margin-top:12px; margin-bottom:0; line-height:1.5;">
             查询已有数据：展示数据库现有结果；实时采集：连接 51job 获取新数据（会清空旧数据）。
         </p>
     </form>
 </div>
 
 <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:6px;">
-    <a href="/chart" class="btn btn-default">查看可视化图表 →</a>
-    <a href="/ml" class="btn btn-default">机器学习分析 →</a>
-    <a href="/advice" class="btn btn-default">问问求职小助手 →</a>
+    <a href="/chart" class="btn btn-default">📊 查看可视化图表 →</a>
+    <a href="/ml" class="btn btn-default">🤖 机器学习分析 →</a>
+    <a href="/advice" class="btn btn-default">💬 问问求职小助手 →</a>
 </div>
 
 {% endblock %}
@@ -153,7 +156,7 @@ function renderTags() {
         selWrap.style.display = 'block';
         selectedDiv.innerHTML = selected.map((s, i) =>
             `<span style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#e8f0e9,#d4e8d0);
-                color:#2a4a35;padding:6px 14px;border-radius:20px;font-size:15px;font-weight:500;
+                color:#2a4a35;padding:8px 18px;border-radius:20px;font-size:16px;font-weight:500;
                 gap:8px; box-shadow:0 1px 3px rgba(0,0,0,.08);">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a7c59" stroke-width="2.5" style="flex-shrink:0;">
                     <path d="M12 22c-5 0-10-4-10-10S7 2 12 2s10 4 10 10-5 10-10 10z"/>

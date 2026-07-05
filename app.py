@@ -388,8 +388,6 @@ def ml_page():
 @app.route('/predict', methods=['POST'])
 def predict():
     import modeling.salary_predict as salary_predict
-    import analysis.jobtitle as jobtitle
-    import analysis.region as region
 
     city = request.form.get('city', '').strip()
     category = request.form.get('category', '').strip()
@@ -640,6 +638,11 @@ if __name__ == '__main__':
     if debug:
         print("[WARN] 检测到 .debug 文件，已启用 debug 模式（含 reloader）", flush=True)
     host = os.environ.get('FLASK_HOST', '127.0.0.1')
+
+    # SO_REUSEADDR: 允许端口立即重用，避免 Windows 上重启 Flask 时
+    # 因 TIME_WAIT 导致 "Address already in use" 需要手动杀进程
+    import socketserver
+    socketserver.TCPServer.allow_reuse_address = True
 
     # threaded=True: 允许并发处理请求,避免/collect 阻塞其他页面浏览
     port = 5000
