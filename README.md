@@ -212,22 +212,4 @@ python app.py                      # 访问 http://<服务器IP>:5000
 | `/advice` | AI Agent 问答 + 城市对比（2-tab） | `advice.html` |
 | `/collect` | 触发实时数据采集 | `collect.html` |
 
-## 代码阅读建议（课程学习顺序）
-
-1. **`config.py`** — 了解项目的基础配置（数据库路径、LLM API Key）
-2. **`data/`** — 数据从哪来、怎么清洗（Playwright 采集 → 薪资解析 → 地址去重）
-3. **`analysis/`** — 基础统计怎么做（薪资/学历/经验/城市分布 + 职位规则分类）
-4. **`modeling/`** — 聚类（KMeans + 轮廓系数选择 k）和回归预测（线性回归 + OneHot 编码）
-5. **`agent/`** — Agent 如何把工具组合起来回答问题（手写 ReAct 推理循环 + 6 个工具注册）
-6. **`app.py`** — 所有部分怎样串成一个完整的 Web 应用（路由 + 空库容错 + 模型缓存）
-
-## Git 提交规范
-
-- `feat:` 新增功能
-- `fix:` 修复 Bug
-- `refactor:` 代码重构（不改变功能）
-- `docs:` 文档更新
-- `cleanup:` 清理/删除无用代码
-- `perf:` 性能优化
-
 <!-- 变更记录见 git log，或 CODEBUDDY.md 第 10 节 -->
