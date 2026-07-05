@@ -50,6 +50,7 @@ instance/
 logs/
 cache/
 static/wordcloud.png
+!static/china_mask.png
 node_modules/
 venv/
 .debug

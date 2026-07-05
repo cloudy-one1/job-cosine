@@ -329,7 +329,7 @@ def chart():
     import analysis.jinyan as jinyan
     import analysis.region as region
     import analysis.cross as cross
-    from analysis.wordcloud_gen import generate_wordcloud_data
+    from analysis.wordcloud_gen import generate_wordcloud_data, ensure_china_mask
     xz = xinzi.xinzi()
     xl = xueli.xuelifun()
     jy = jinyan.jinyanfun()
@@ -337,9 +337,12 @@ def chart():
     cross_exper = cross.salary_vs_exper()
     cross_edu = cross.salary_vs_edu()
     wc_data = generate_wordcloud_data(top_n=60)
+    # 确保中国地图 mask 存在
+    mask_path = ensure_china_mask()
+    wc_mask_url = url_for('static', filename='china_mask.png') if mask_path else ''
     return render_template('h.html', xz=xz, xl=xl, jy=jy, city_data=city_data,
                            cross_exper=cross_exper, cross_edu=cross_edu,
-                           wc_data=wc_data)
+                           wc_data=wc_data, wc_mask_url=wc_mask_url)
 
 
 def _safe_model_metrics(mc):
