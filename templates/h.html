@@ -88,74 +88,36 @@ const tip = {
     var data = words.map(function(w){
         return { name: w[0], value: w[1] };
     });
-    // 加载中国地图 mask 图片，加载完成后渲染词云
-    var maskImg = new Image();
-    maskImg.src = "{{ wc_mask_url }}";
-    maskImg.onload = function(){
-        chart.setOption({
-            tooltip: Object.assign({}, tip, {
-                formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
-            }),
-            series: [{
-                type: 'wordCloud',
-                maskImage: maskImg,
-                sizeRange: [10, 48],
-                rotationRange: [-30, 30],
-                rotationStep: 15,
-                gridSize: 6,
-                width: '100%',
-                height: '100%',
-                drawOutOfBound: false,
-                layoutAnimation: true,
-                textStyle: {
-                    fontFamily: '"Noto Sans SC", sans-serif',
-                    fontWeight: 'normal',
-                    color: function() {
-                        var clrs = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
-                                    '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
-                        return clrs[Math.floor(Math.random() * clrs.length)];
-                    }
-                },
-                emphasis: {
-                    textStyle: { fontSize: 32, fontWeight: 'bold' }
-                },
-                data: data
-            }]
-        });
-    };
-    // 如果图片加载失败（如文件不存在），退化为圆形
-    maskImg.onerror = function(){
-        chart.setOption({
-            tooltip: Object.assign({}, tip, {
-                formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
-            }),
-            series: [{
-                type: 'wordCloud',
-                shape: 'circle',
-                sizeRange: [10, 48],
-                rotationRange: [-30, 30],
-                rotationStep: 15,
-                gridSize: 6,
-                width: '100%',
-                height: '100%',
-                drawOutOfBound: false,
-                layoutAnimation: true,
-                textStyle: {
-                    fontFamily: '"Noto Sans SC", sans-serif',
-                    fontWeight: 'normal',
-                    color: function() {
-                        var clrs = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
-                                    '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
-                        return clrs[Math.floor(Math.random() * clrs.length)];
-                    }
-                },
-                emphasis: {
-                    textStyle: { fontSize: 32, fontWeight: 'bold' }
-                },
-                data: data
-            }]
-        });
-    };
+    chart.setOption({
+        tooltip: Object.assign({}, tip, {
+            formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
+        }),
+        series: [{
+            type: 'wordCloud',
+            shape: 'circle',
+            sizeRange: [14, 56],
+            rotationRange: [-30, 30],
+            rotationStep: 15,
+            gridSize: 8,
+            width: '100%',
+            height: '100%',
+            drawOutOfBound: false,
+            layoutAnimation: true,
+            textStyle: {
+                fontFamily: '"Noto Sans SC", sans-serif',
+                fontWeight: 'normal',
+                color: function() {
+                    var clrs = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
+                                '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
+                    return clrs[Math.floor(Math.random() * clrs.length)];
+                }
+            },
+            emphasis: {
+                textStyle: { fontSize: 32, fontWeight: 'bold' }
+            },
+            data: data
+        }]
+    });
     {% endif %}
     window.addEventListener('resize', function(){ chart.resize(); });
 })();

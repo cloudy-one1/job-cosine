@@ -216,6 +216,10 @@ def ensure_china_mask(mask_path=None):
     """
     确保中国地图 mask 图片存在。不存在时从 GeoJSON 自动生成。
 
+    mask 格式: RGBA PNG，中国地图区域为白色+透明(alpha=0)，
+    背景为黑色+不透明(alpha=255)。这样无论 wordcloud2 看 alpha
+    还是亮度，文字都会填充在地图形状内。
+
     返回:
         str: mask 图片路径，失败返回 None
     """
@@ -226,24 +230,20 @@ def ensure_china_mask(mask_path=None):
     if os.path.exists(mask_path):
         return mask_path
 
-    # 尝试从 GeoJSON 生成
     geojson_path = os.path.join(os.path.dirname(mask_path), 'china_geo.json')
     if not os.path.exists(geojson_path):
-        _logger.warning('china_geo.json 不存在，无法生成 mask，将跳过中国地图形状')
+        _logger.warning('china_geo.json 不存在，无法生成 mask')
         return None
 
     try:
         import json
-        import matplotlib
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-        from matplotlib.patches import Polygon
+        from PIL import Image, ImageDraw
 
         with open(geojson_path, 'r', encoding='utf-8') as f:
             geo = json.load(f)
 
-        patches = []
         all_lons, all_lats = [], []
+        polygons = []   # [(外环点列, [内环点列, ...]), ...]
 
         for feat in geo.get('features', []):
             geom = feat.get('geometry')
@@ -254,52 +254,79 @@ def ensure_china_mask(mask_path=None):
             if not coords:
                 continue
 
-            def _extract_rings(c):
-                rings = []
-                if gtype == 'Polygon':
-                    for ring in c:
+            if gtype == 'Polygon':
+                # 第一个 ring 是外环，其余是内环(洞)
+                poly_rings = []
+                for ring in coords:
+                    pts = [(p[0], p[1]) for p in ring if len(p) >= 2]
+                    if len(pts) >= 3:
+                        poly_rings.append(pts)
+                if poly_rings:
+                    polygons.append(poly_rings)
+                    for ring in poly_rings:
+                        for p in ring:
+                            all_lons.append(p[0])
+                            all_lats.append(p[1])
+
+            elif gtype == 'MultiPolygon':
+                for poly in coords:
+                    poly_rings = []
+                    for ring in poly:
                         pts = [(p[0], p[1]) for p in ring if len(p) >= 2]
                         if len(pts) >= 3:
-                            rings.append(pts)
-                elif gtype == 'MultiPolygon':
-                    for poly in c:
-                        for ring in poly:
-                            pts = [(p[0], p[1]) for p in ring if len(p) >= 2]
-                            if len(pts) >= 3:
-                                rings.append(pts)
-                return rings
+                            poly_rings.append(pts)
+                    if poly_rings:
+                        polygons.append(poly_rings)
+                        for ring in poly_rings:
+                            for p in ring:
+                                all_lons.append(p[0])
+                                all_lats.append(p[1])
 
-            for pts in _extract_rings(coords):
-                all_lons.extend([p[0] for p in pts])
-                all_lats.extend([p[1] for p in pts])
-                patches.append(Polygon(pts, closed=True))
-
-        if not patches:
+        if not polygons:
             _logger.warning('GeoJSON 中无有效多边形')
             return None
+
+        # 画布尺寸 — 与中国地图经纬度比例匹配，避免拉伸
+        W, H = 1200, 900
+        pad = 20
 
         min_lon, max_lon = min(all_lons), max(all_lons)
         min_lat, max_lat = min(all_lats), max(all_lats)
 
-        fig, ax = plt.subplots(figsize=(10, 8), dpi=100)
-        ax.set_xlim(min_lon, max_lon)
-        ax.set_ylim(min_lat, max_lat)
-        ax.set_aspect('equal')
-        ax.axis('off')
+        lon_scale = (W - 2 * pad) / (max_lon - min_lon)
+        lat_scale = (H - 2 * pad) / (max_lat - min_lat)
+        # 保持等比例，取较小缩放因子
+        scale = min(lon_scale, lat_scale)
 
-        for p in patches:
-            ax.add_patch(p)
-            p.set_facecolor('white')    # 白色=可放文字
-            p.set_edgecolor('none')
+        # 计算居中偏移
+        data_w = (max_lon - min_lon) * scale
+        data_h = (max_lat - min_lat) * scale
+        off_x = (W - data_w) / 2
+        off_y = (H - data_h) / 2
 
-        ax.set_facecolor('black')
-        fig.patch.set_facecolor('black')
+        def _proj(lon, lat):
+            x = off_x + (lon - min_lon) * scale
+            # 纬度北高南低，图片 y 轴南高北低，需要翻转
+            y = H - (off_y + (lat - min_lat) * scale)
+            return x, y
+
+        # 创建 RGBA 图片: 背景黑色+不透明, 地图白色+透明
+        img = Image.new('RGBA', (W, H), (0, 0, 0, 255))
+        draw = ImageDraw.Draw(img)
+
+        for poly_rings in polygons:
+            if not poly_rings:
+                continue
+            outer = [_proj(p[0], p[1]) for p in poly_rings[0]]
+            # PIL ImageDraw.polygon 不支持带洞的多边形，
+            # 这里只画外环（中国省界密集，忽略湖泊/洞对整体轮廓影响极小）
+            if len(outer) >= 3:
+                # 白色 + alpha=0（透明，表示可放文字的区域）
+                draw.polygon(outer, fill=(255, 255, 255, 0))
 
         os.makedirs(os.path.dirname(mask_path), exist_ok=True)
-        fig.savefig(mask_path, dpi=100, bbox_inches='tight', pad_inches=0, facecolor='black')
-        plt.close(fig)
-
-        _logger.info(f'中国地图 mask 已生成: {mask_path}')
+        img.save(mask_path, 'PNG')
+        _logger.info(f'中国地图 mask 已生成: {mask_path} ({W}x{H})')
         return mask_path
 
     except Exception as e:
