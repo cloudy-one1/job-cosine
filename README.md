@@ -232,6 +232,14 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## 更新日志（Changelog）
 
+- **2026-07-05 · feat: 词云可视化 — /chart 页面新增「技能词云」板块**
+  - 新增 `analysis/wordcloud_gen.py`：jieba 分词 + 85 组技术词同义词归一化（CSS3→CSS, vue→Vue 等）+ 120+ 停用词过滤（福利/学历/城市/通用词）
+  - `/chart` 页面新增 ECharts 词云图（`echarts-wordcloud` 扩展）+ 右侧 TOP 20 高频关键词排名表
+  - 后端 `/chart` 路由新增 `wc_data` 词频数据传参，空库时自动隐藏词云板块
+  - 修复 `python_job_scraper.py` Playwright `Page.evaluate()` 误传 `timeout` 参数导致采集 0 条的 bug
+  - 新增依赖 `wordcloud>=1.9`, `imageio>=2.31`, `matplotlib>=3.7`
+  - 154 个测试全部通过
+
 - **2026-07-05 · feat: 城市代码从 30 个扩展到 388 个，覆盖全国所有地级市**
   - 来源：51job 官方 CDN (`area_array_c.js`)，自动解析 6 位市级代码
   - `CITY_CODES` 和 `CITY_PINYIN` 同步扩展，拼音由 `pypinyin` 自动生成
