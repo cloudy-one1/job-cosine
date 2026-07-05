@@ -232,6 +232,12 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## 更新日志（Changelog）
 
+- **2026-07-05 · feat: 城市代码从 30 个扩展到 388 个，覆盖全国所有地级市**
+  - 来源：51job 官方 CDN (`area_array_c.js`)，自动解析 6 位市级代码
+  - `CITY_CODES` 和 `CITY_PINYIN` 同步扩展，拼音由 `pypinyin` 自动生成
+  - 随机抽样 10 个城市（邢台/南京/中山/黄南/延吉/岳阳/定安/吉安/鹰潭/包头）Playwright 验证全部通过
+  - 154 个测试全部通过，向后兼容
+
 - **2026-07-04 · fix: 职位详情页51job原文跳转按钮不显示**
   - 根因：`ALTER TABLE` 新增的 `job_url` 字段在旧记录上为 `NULL`，模板 `{% if job.job_url %}` 判断为假导致按钮不渲染
   - `app.py /job/<id>` 路由：读取时 `job['job_url'] or ''` 回退，兼容旧数据
