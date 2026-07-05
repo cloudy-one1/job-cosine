@@ -1,15 +1,111 @@
 {% extends "base.html" %}
 {% block content %}
 
-<p class="eyebrow">案卷 NO. 03 · 图表分析</p>
-<h2 style="margin-bottom:20px;">招聘数据可视化</h2>
+<style>
+/* ---------- sidebar layout ---------- */
+.chart-layout{ display:flex; gap:24px; align-items:flex-start; }
+.chart-sidebar{
+    width:180px; flex-shrink:0; background:var(--card);
+    border:1px solid var(--line); border-radius:3px; overflow:hidden;
+    position:sticky; top:100px;
+}
+.chart-sidebar ul{ list-style:none; padding:0; margin:0; }
+.chart-sidebar li{ border-bottom:1px solid var(--line); }
+.chart-sidebar li:last-child{ border-bottom:none; }
+.chart-sidebar li a{
+    display:block; padding:11px 16px; font-size:13px; font-weight:500;
+    color:var(--ink-soft); text-decoration:none; transition:.15s ease;
+    border-left:3px solid transparent;
+}
+.chart-sidebar li a:hover{ color:var(--ink); background:var(--teal-soft); border-left-color:var(--teal); }
+.chart-sidebar li a.active{
+    color:var(--ink); font-weight:700; background:var(--teal-soft);
+    border-left-color:var(--stamp);
+}
+.chart-main{ flex:1; min-width:0; }
 
-<!-- 技能词云 -->
+
+@media (max-width:720px){
+    .chart-layout{ flex-direction:column; }
+    .chart-sidebar{ width:100%; position:static; }
+    .chart-sidebar ul{ display:flex; flex-wrap:wrap; }
+    .chart-sidebar li{ border-bottom:none; border-right:1px solid var(--line); }
+    .chart-sidebar li a{ border-left:none; border-bottom:3px solid transparent; padding:10px 12px; font-size:12px; }
+    .chart-sidebar li a.active{ border-left-color:transparent; border-bottom-color:var(--stamp); }
+}
+</style>
+
+<p class="eyebrow">案卷 NO. 03 · 可视化数据分析</p>
+<h2 style="margin-bottom:24px;">招聘数据可视化</h2>
+
+<div class="chart-layout">
+    <!-- ===== 左侧导航 ===== -->
+    <nav class="chart-sidebar">
+        <ul>
+            <li><a href="/chart/city"      class="{% if section=='city' %}active{% endif %}">城市分布</a></li>
+            <li><a href="/chart/salary"    class="{% if section=='salary' %}active{% endif %}">薪资分布</a></li>
+            <li><a href="/chart/xueli"     class="{% if section=='xueli' %}active{% endif %}">学历占比</a></li>
+            <li><a href="/chart/jinyan"    class="{% if section=='jinyan' %}active{% endif %}">经验占比</a></li>
+            <li><a href="/chart/wordcloud" class="{% if section=='wordcloud' %}active{% endif %}">高频热词</a></li>
+            <li><a href="/chart/cross"     class="{% if section=='cross' %}active{% endif %}">交叉分析</a></li>
+        </ul>
+    </nav>
+
+    <!-- ===== 右侧图表区 ===== -->
+    <div class="chart-main">
+
+{# ---------- 城市分布 ---------- #}
+{% if section == 'city' %}
+<div class="card" data-no="城市分布">
+    <div id="city_chart" style="width:100%; height:780px;"></div>
+</div>
+{% endif %}
+
+{# ---------- 薪资分布 ---------- #}
+{% if section == 'salary' %}
+<div class="card" data-no="薪资分布">
+    <div id="salary_chart" style="width:100%; height:460px;"></div>
+</div>
+{% endif %}
+
+{# ---------- 学历占比 ---------- #}
+{% if section == 'xueli' %}
+<div class="card" data-no="学历占比">
+    <div id="xueli_chart" style="width:100%; height:460px;"></div>
+</div>
+{% endif %}
+
+{# ---------- 经验占比 ---------- #}
+{% if section == 'jinyan' %}
+<div class="card" data-no="经验占比">
+    <div id="jinyan_chart" style="width:100%; height:460px;"></div>
+</div>
+{% endif %}
+
+{# ---------- 高频热词 ---------- #}
+{% if section == 'wordcloud' %}
 {% if wc_data and wc_data.words and wc_data.words|length > 0 %}
-<div class="card" data-no="技能词云" style="margin-bottom:20px;">
+<style>
+/* 词云呼吸动画（容器整体） */
+@keyframes wc-breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.05); }
+}
+.wc-word {
+    position: absolute; white-space: nowrap; cursor: default;
+    font-family: "Noto Sans SC", sans-serif; font-weight: 500;
+    transition: color .3s, text-shadow .3s;
+}
+.wc-word:hover {
+    color: #A33B2E !important; font-weight: 700;
+    text-shadow: 0 2px 8px rgba(163,59,46,.25);
+    z-index: 10;
+}
+</style>
+<div class="card" data-no="高频热词">
     <div style="display:flex; gap:20px; flex-wrap:wrap;">
-        <div id="wordcloud_chart" style="flex:2; min-width:400px; height:440px;"></div>
-        <div style="flex:1; min-width:200px; max-height:440px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:13px;">
+        <div id="wordcloud_container" style="flex:2; min-width:400px; height:620px; position:relative; overflow:hidden; animation:wc-breathe 4s ease-in-out infinite;"></div>
+        <div style="flex:1; min-width:200px; max-height:460px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:13px;">
             <h4 style="margin:0 0 10px; color:#1C2620; font-size:14px;">🔥 高频技能 TOP 20</h4>
             <table style="width:100%; border-collapse:collapse;">
                 <thead>
@@ -30,47 +126,35 @@
         </div>
     </div>
 </div>
+{% else %}
+<div class="card" data-no="高频热词">
+    <p style="text-align:center; color:var(--ink-soft); padding:40px;">暂无数据，请先采集岗位数据</p>
+</div>
+{% endif %}
 {% endif %}
 
-<!-- 薪资分布 -->
-<div class="card" data-no="薪资分布">
-    <div id="salary_chart" style="width:100%; height:400px;"></div>
+{# ---------- 交叉分析 ---------- #}
+{% if section == 'cross' %}
+<div>
+    <div class="card" data-no="薪资vs经验" style="width:100%; margin-bottom:24px;">
+        <div id="cross_exper_chart" style="width:100%; height:520px;"></div>
+    </div>
+    <div class="card" data-no="薪资vs学历" style="width:100%;">
+        <div id="cross_edu_chart" style="width:100%; height:520px;"></div>
+    </div>
 </div>
+{% endif %}
 
-<!-- 学历 + 经验 (并排) -->
-<div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap;">
-    <div class="card" data-no="学历占比" style="flex:1; min-width:280px;">
-        <div id="xueli_chart" style="width:100%; height:380px;"></div>
-    </div>
-    <div class="card" data-no="经验占比" style="flex:1; min-width:280px;">
-        <div id="jinyan_chart" style="width:100%; height:380px;"></div>
-    </div>
-</div>
-
-<!-- 城市分布 -->
-<div class="card" data-no="城市分布" style="margin-top:20px;">
-    <div id="city_chart" style="width:100%; height:420px;"></div>
-</div>
-
-<!-- 交叉分析: 薪资 vs 经验 + 薪资 vs 学历 (并排) -->
-<div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap;">
-    <div class="card" data-no="薪资vs经验" style="flex:1; min-width:380px;">
-        <div id="cross_exper_chart" style="width:100%; height:420px;"></div>
-    </div>
-    <div class="card" data-no="薪资vs学历" style="flex:1; min-width:380px;">
-        <div id="cross_edu_chart" style="width:100%; height:420px;"></div>
-    </div>
-</div>
+    </div><!-- /.chart-main -->
+</div><!-- /.chart-layout -->
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
 // ---------- 主题色 ----------
 const COLORS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A','#1C2620','#C9A96E','#8B4A3A'];
 const TEXT_COLOR = '#1C2620';
 const SOFT_COLOR = '#5E665A';
 
-// 通用 tooltip
 const tip = {
     backgroundColor: '#FBFAF6',
     borderColor: '#D7D9CB',
@@ -78,53 +162,308 @@ const tip = {
     extraCssText: 'border-radius:2px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
 };
 
-// ---------- 0. 技能词云 ----------
+// ---------- 城市分布（中国地图） ----------
+{% if section == 'city' %}
 (function(){
-    var dom = document.getElementById('wordcloud_chart');
+    var dom = document.getElementById('city_chart');
     if(!dom) return;
     var chart = echarts.init(dom);
-    {% if wc_data and wc_data.words %}
-    var words = {{ wc_data.words|tojson }};
-    var data = words.map(function(w){
-        return { name: w[0], value: w[1] };
-    });
-    chart.setOption({
-        tooltip: Object.assign({}, tip, {
-            formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
-        }),
-        series: [{
-            type: 'wordCloud',
-            shape: 'circle',
-            sizeRange: [14, 56],
-            rotationRange: [-30, 30],
-            rotationStep: 15,
-            gridSize: 8,
-            width: '100%',
-            height: '100%',
-            drawOutOfBound: false,
-            layoutAnimation: true,
-            textStyle: {
-                fontFamily: '"Noto Sans SC", sans-serif',
-                fontWeight: 'normal',
-                color: function() {
-                    var clrs = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
-                                '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
-                    return clrs[Math.floor(Math.random() * clrs.length)];
-                }
-            },
-            emphasis: {
-                textStyle: { fontSize: 32, fontWeight: 'bold' }
-            },
-            data: data
-        }]
-    });
-    {% endif %}
+    var data = {{ city_data|tojson }};
+
+    // 常见城市坐标（经度, 纬度）
+    var CITY_COORDS = {
+        '北京':[116.4074,39.9042],'上海':[121.4737,31.2304],'广州':[113.2644,23.1291],
+        '深圳':[114.0579,22.5431],'杭州':[120.1551,30.2741],'成都':[104.0668,30.5728],
+        '武汉':[114.3054,30.5931],'西安':[108.9398,34.3416],'南京':[118.7969,32.0603],
+        '重庆':[106.5516,29.5630],'天津':[117.2008,39.0842],'苏州':[120.5853,31.2989],
+        '长沙':[112.9388,28.2282],'郑州':[113.6253,34.7466],'青岛':[120.3826,36.0671],
+        '大连':[121.6147,38.9140],'宁波':[121.5500,29.8750],'厦门':[118.0894,24.4798],
+        '福州':[119.2965,26.0745],'济南':[117.1205,36.6510],'哈尔滨':[126.5350,45.8038],
+        '沈阳':[123.4315,41.8057],'长春':[125.3235,43.8171],'昆明':[102.8329,24.8801],
+        '贵阳':[106.6302,26.6477],'南宁':[108.3661,22.8172],'兰州':[103.8343,36.0611],
+        '乌鲁木齐':[87.6168,43.8256],'呼和浩特':[111.7492,40.8426],'拉萨':[91.1409,29.6456],
+        '海口':[110.3492,20.0174],'石家庄':[114.5149,38.0423],'太原':[112.5489,37.8706],
+        '合肥':[117.2272,31.8206],'南昌':[115.8579,28.6820],'无锡':[120.3119,31.4912],
+        '东莞':[113.7518,23.0207],'佛山':[113.1214,23.0215],'烟台':[121.4481,37.4635],
+        '常州':[119.9741,31.8112],'徐州':[117.2841,34.2058],'南通':[120.8943,32.0722],
+        '温州':[120.6994,27.9943],'绍兴':[120.5802,30.0302],'嘉兴':[120.7555,30.7450],
+        '金华':[119.6495,29.0895],'台州':[121.4206,28.6564],'珠海':[113.5767,22.2707],
+        '惠州':[114.4168,23.1118],'中山':[113.3927,22.5176],'泉州':[118.6757,24.8740],
+        '潍坊':[119.1618,36.7069],'淄博':[118.0550,36.8135],'威海':[122.1206,37.5135],
+        '临沂':[118.3564,35.1047],'济宁':[116.3955,35.4144],'泰安':[117.0876,36.2003],
+        '德州':[116.3594,37.4357],'聊城':[115.9804,36.4560],'滨州':[117.8174,37.3834],
+        '菏泽':[115.4807,35.2338],'咸阳':[108.7089,34.3296],'宝鸡':[107.2371,34.3630],
+        '渭南':[109.5102,34.4999],'汉中':[107.0282,33.0777],'榆林':[109.7346,38.2852],
+        '安康':[109.0291,32.6900],'商洛':[109.9404,33.8704],'延安':[109.4898,36.5853],
+        '桂林':[110.1794,25.2345],'柳州':[109.4281,24.3265],'北海':[109.1202,21.4811],
+        '玉林':[110.1544,22.6314],'湛江':[110.3594,21.2707],'茂名':[110.9255,21.6629],
+        '江门':[113.0811,22.5789],'肇庆':[112.4653,23.0469],'清远':[113.0560,23.6820],
+        '揭阳':[116.3728,23.5497],'汕头':[116.7145,23.3714],'韶关':[113.5915,24.8112],
+        '阳江':[111.9826,21.8579],'梅州':[116.1224,24.2886],'潮州':[116.6324,23.6564],
+        '汕尾':[115.3751,22.7857],'河源':[114.6978,23.7435],'云浮':[112.0444,22.9156],
+        '滁州':[118.3171,32.3016],'蚌埠':[117.3893,32.9156],'芜湖':[118.4331,31.3529],
+        '安庆':[117.0635,30.5429],'阜阳':[115.8145,32.8908],'宿州':[116.9644,33.6464],
+        '六安':[116.5203,31.7359],'亳州':[115.7795,33.8445],'池州':[117.4892,30.6560],
+        '宣城':[118.7573,30.9408],'淮南':[116.9999,32.6255],'淮北':[116.7982,33.9551],
+        '铜陵':[117.8113,30.9454],'马鞍山':[118.5068,31.6994],'黄山':[118.3387,29.7152],
+        '盐城':[120.1614,33.3474],'扬州':[119.4127,32.3932],'镇江':[119.4230,32.1889],
+        '泰州':[119.9155,32.4847],'宿迁':[118.2755,33.9630],'淮安':[119.0153,33.6104],
+        '连云港':[119.2216,34.5967],'湖州':[120.0868,30.8943],'衢州':[118.8594,28.9700],
+        '丽水':[119.9228,28.4676],'舟山':[122.1068,30.0160],'阜阳':[115.8145,32.8908],
+        '商丘':[115.6564,34.4142],'信阳':[114.0913,32.1470],'南阳':[112.5285,32.9908],
+        '开封':[114.3077,34.7972],'洛阳':[112.4345,34.6197],'安阳':[114.3924,36.0976],
+        '新乡':[113.9268,35.3030],'许昌':[113.8523,34.0358],'平顶山':[113.1927,33.7661],
+        '焦作':[113.2420,35.2159],'濮阳':[115.0292,35.7619],'漯河':[114.0168,33.5815],
+        '三门峡':[111.2002,34.7726],'鹤壁':[114.2973,35.7470],'周口':[114.6969,33.6258],
+        '驻马店':[114.0223,32.9805],'宜昌':[111.2865,30.6919],'襄阳':[112.1221,32.0090],
+        '荆州':[112.2397,30.3352],'荆门':[112.1994,31.0355],'黄冈':[114.8723,30.4539],
+        '孝感':[113.9169,30.9245],'咸宁':[114.3225,29.8413],'随州':[113.3825,31.6901],
+        '恩施':[109.4882,30.2722],'十堰':[110.7976,32.6292],'黄石':[115.0388,30.1997],
+        '鄂州':[114.8949,30.3911],'潜江':[112.8993,30.4021],'天门':[113.1666,30.6634],
+        '仙桃':[113.4427,30.3285],'郴州':[113.0147,25.7705],'永州':[111.6082,26.4345],
+        '怀化':[110.0016,27.6999],'娄底':[111.9945,27.7001],'湘西':[109.7389,28.3140],
+        '张家界':[110.4792,29.1171],'益阳':[112.3552,28.5539],'常德':[111.6985,29.0316],
+        '衡阳':[112.5719,26.8932],'邵阳':[111.4678,27.2389],'岳阳':[113.1292,29.3571],
+        '株洲':[113.1330,27.8274],'湘潭':[112.9440,27.8297],'大同':[113.3004,40.0768],
+        '长治':[113.1163,36.1954],'晋城':[112.8513,35.4900],'朔州':[112.4324,39.3312],
+        '晋中':[112.7538,37.6870],'运城':[111.0064,35.0263],'忻州':[112.7342,38.4164],
+        '临汾':[111.5190,36.0880],'吕梁':[111.1448,37.5193],'阳泉':[113.5806,37.8569],
+        '鞍山':[122.9943,41.1075],'抚顺':[123.9572,41.8797],'本溪':[123.7665,41.2942],
+        '丹东':[124.3544,40.0005],'锦州':[121.1270,41.0951],'营口':[122.2195,40.6259],
+        '阜新':[121.6700,42.0217],'辽阳':[123.2397,41.2671],'盘锦':[122.0707,41.1199],
+        '铁岭':[123.8425,42.2862],'朝阳':[120.4511,41.5737],'葫芦岛':[120.8369,40.7109],
+        '吉林':[126.5494,43.8378],'四平':[124.3504,43.1665],'辽源':[125.1437,42.8876],
+        '通化':[125.9365,41.7212],'白山':[126.4230,41.9425],'松原':[124.8253,45.1417],
+        '白城':[122.8385,45.6200],'延边':[129.5091,42.8912],'齐齐哈尔':[123.9182,47.3543],
+        '牡丹江':[129.6186,44.5827],'佳木斯':[130.3209,46.7998],'大庆':[125.1030,46.5893],
+        '鸡西':[130.9698,45.2952],'双鸭山':[131.1591,46.6466],'伊春':[128.8405,47.7275],
+        '七台河':[131.0031,45.7706],'鹤岗':[130.2775,47.3321],'黑河':[127.5283,50.2451],
+        '绥化':[126.9689,46.6537],'大兴安岭':[124.7115,52.3353],'唐山':[118.1802,39.6309],
+        '秦皇岛':[119.5992,39.9354],'邯郸':[114.4905,36.6123],'邢台':[114.5047,37.0659],
+        '保定':[115.4646,38.8739],'张家口':[114.8875,40.8119],'承德':[117.9328,40.9510],
+        '沧州':[116.8388,38.3045],'廊坊':[116.6837,39.5380],'衡水':[115.6860,37.7350],
+        '包头':[109.8402,40.6574],'乌海':[106.7953,39.6538],'赤峰':[118.8869,42.2578],
+        '通辽':[122.2443,43.6525],'鄂尔多斯':[109.7813,39.6082],'呼伦贝尔':[119.7657,49.2115],
+        '巴彦淖尔':[107.3877,40.7432],'乌兰察布':[113.1338,40.9937],'兴安盟':[122.0673,46.0773],
+        '锡林郭勒':[116.0475,43.9334],'阿拉善':[105.7287,38.8519],'莆田':[119.0078,25.4540],
+        '三明':[117.6351,26.2654],'南平':[118.1778,26.6418],'龙岩':[117.0294,25.0913],
+        '宁德':[119.5479,26.6661],'漳州':[117.6475,24.5132],'景德镇':[117.1784,29.2690],
+        '萍乡':[113.8543,27.6229],'九江':[116.0019,29.7041],'新余':[114.9171,27.8176],
+        '鹰潭':[117.0339,28.2385],'赣州':[114.9350,25.8310],'吉安':[114.9935,27.1138],
+        '宜春':[114.4168,27.8156],'抚州':[116.3581,27.9480],'上饶':[117.9434,28.4549],
+        '枣庄':[117.3237,34.8108],'东营':[118.6747,37.4337],'济宁':[116.3955,35.4144],
+        '泰安':[117.0876,36.2003],'日照':[119.5269,35.4164],'莱芜':[117.6771,36.2144],
+        '临沂':[118.3564,35.1047],'德州':[116.3594,37.4357],'聊城':[115.9804,36.4560],
+        '滨州':[117.8174,37.3834],'菏泽':[115.4807,35.2338],'安阳':[114.3924,36.0976],
+        '新乡':[113.9268,35.3030],'焦作':[113.2420,35.2159],'许昌':[113.8523,34.0358],
+        '南阳':[112.5285,32.9908],'信阳':[114.0913,32.1470],'济源':[112.5903,35.0901],
+        '漯河':[114.0168,33.5815],'三门峡':[111.2002,34.7726],'鹤壁':[114.2973,35.7470],
+        '驻马店':[114.0223,32.9805],'西宁':[101.7782,36.6171],'海东':[102.1043,36.5029],
+        '海北':[100.9009,36.9545],'黄南':[102.0150,35.5195],'海南':[100.6201,36.2804],
+        '果洛':[100.2448,34.4714],'玉树':[97.0088,33.0040],'海西':[97.3711,37.3771],
+        '银川':[106.2309,38.4872],'石嘴山':[106.3825,39.0142],'吴忠':[106.1989,37.9857],
+        '固原':[106.2782,36.0046],'中卫':[105.1968,37.4999],'拉萨':[91.1409,29.6456],
+        '日喀则':[88.8803,29.2670],'昌都':[97.1723,31.1407],'林芝':[94.3623,29.6484],
+        '山南':[91.7730,29.2370],'那曲':[92.0514,31.4761],'阿里':[80.1055,32.5011],
+        '香港':[114.1710,22.3193],'澳门':[113.5491,22.1987],'台北':[121.5654,25.0330],
+        '高雄':[120.3114,22.6209],'台中':[120.6736,24.1477],'台南':[120.1840,22.9914],
+        '新北':[121.4657,25.0119],'桃园':[121.3000,24.9936],'基隆':[121.7448,25.1294],
+        '新竹':[120.9688,24.8067],'嘉义':[120.4525,23.4801],'彰化':[120.5397,24.0743],
+        '苗栗':[120.8208,24.5640],'南投':[120.6839,23.9130],'云林':[120.5300,23.6950],
+        '屏东':[120.4879,22.6820],'宜兰':[121.7530,24.7590],'花莲':[121.6012,23.9872],
+        '台东':[121.1438,22.7547],'澎湖':[119.5660,23.5655],'金门':[118.3171,24.4321],
+        '马祖':[119.9373,26.1575]
+    };
+
+    function normalizeCity(name){
+        if(!name) return '';
+        var n = name.trim();
+        // 去掉末尾"市"
+        if(n.length>1 && n.charAt(n.length-1)==='市') n = n.slice(0,-1);
+        return n;
+    }
+
+    // 构建散点数据 [lng, lat, count, cityName]
+    var scatterData = [];
+    var maxCount = 0;
+    for(var i=0;i<data.length;i++){
+        var cityName = normalizeCity(data[i][0]);
+        var count = data[i][1];
+        if(count>maxCount) maxCount=count;
+        var coord = CITY_COORDS[cityName];
+        if(coord){
+            scatterData.push({name: data[i][0], value: coord.concat([count])});
+        }
+    }
+
+    // 箭头线 + 柱形图数据
+    var OFFSET_LNG = 2.5, OFFSET_LAT = 1.0;
+    var lineData = [];
+    var barData = [];
+    for(var i=0;i<scatterData.length;i++){
+        var item = scatterData[i];
+        var start = [item.value[0], item.value[1]];
+        var end = [item.value[0] + OFFSET_LNG, item.value[1] + OFFSET_LAT];
+        lineData.push({coords: [start, end]});
+        barData.push({name: item.name, value: end.concat([item.value[2]])});
+    }
+
+    // 加载中国地图 GeoJSON
+    fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+        .then(function(r){ return r.json(); })
+        .then(function(geoJson){
+            echarts.registerMap('china', geoJson);
+            chart.setOption({
+                title: { text: '城市职位数量分布', left: 'center', top: 6,
+                         textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(250,249,245,0.96)',
+                    borderColor: '#D7D9CB',
+                    textStyle: { color:'#1C2620', fontFamily:"'Noto Sans SC',sans-serif", fontSize:14 },
+                    formatter: function(p){
+                        if(p.seriesType==='effectScatter' || p.seriesType==='scatter'){
+                            return '<b>'+p.name+'</b><br/>职位数: <b>'+p.value[2]+'</b>';
+                        }
+                        return p.name;
+                    }
+                },
+                geo: {
+                    map: 'china',
+                    roam: true,
+                    zoom: 1.6,
+                    center: [105, 36],
+                    label: { show: false },
+                    itemStyle: {
+                        areaColor: '#E8EADF',
+                        borderColor: '#C5C8B8',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        itemStyle: { areaColor: '#D7D9CB' },
+                        label: { show: false }
+                    }
+                },
+                series: [
+                    {
+                        type: 'effectScatter',
+                        coordinateSystem: 'geo',
+                        data: scatterData,
+                        symbolSize: function(v){
+                            var c = v[2];
+                            if(maxCount<=1) return 12;
+                            return 8 + Math.round((c / maxCount) * 20);
+                        },
+                        showEffectOn: 'render',
+                        rippleEffect: { brushType: 'stroke', scale: 2.5 },
+                        label: {
+                            show: true,
+                            formatter: '{b}',
+                            position: 'right',
+                            fontSize: 11,
+                            color: '#1C2620',
+                            fontWeight: 500
+                        },
+                        itemStyle: {
+                            color: '#A33B2E',
+                            shadowBlur: 10,
+                            shadowColor: 'rgba(163,59,46,0.4)'
+                        },
+                        emphasis: {
+                            scale: true,
+                            label: { show: true, fontSize: 13, fontWeight: 'bold' }
+                        }
+                    },
+                    {
+                        type: 'lines',
+                        coordinateSystem: 'geo',
+                        zlevel: 2,
+                        lineStyle: {
+                            width: 1.5,
+                            color: '#7A4E6B',
+                            type: 'solid',
+                            curveness: 0.1
+                        },
+                        symbol: ['none', 'arrow'],
+                        symbolSize: 8,
+                        data: lineData
+                    },
+                    {
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        zlevel: 3,
+                        data: barData,
+                        symbol: 'rect',
+                        symbolSize: function(v){
+                            var h = 10 + Math.round((v[2] / Math.max(maxCount,1)) * 24);
+                            return [14, h];
+                        },
+                        itemStyle: {
+                            color: '#2E6E5E',
+                            borderRadius: [3, 3, 0, 0],
+                            shadowBlur: 4,
+                            shadowColor: 'rgba(46,110,94,0.3)'
+                        },
+                        label: {
+                            show: true,
+                            position: 'top',
+                            distance: 3,
+                            formatter: '{@[2]}',
+                            fontSize: 12,
+                            color: '#A33B2E',
+                            fontWeight: 700
+                        }
+                    }
+                ]
+            });
+        })
+        .catch(function(e){
+            console.error('地图加载失败', e);
+            // 降级为柱状图
+            var cities = data.map(function(d){ return d[0]; });
+            var counts = data.map(function(d){ return d[1]; });
+            chart.setOption({
+                color: COLORS,
+                tooltip: Object.assign({}, tip, {
+                    formatter: function(p){ return '<b>' + p.name + '</b><br/>职位数: <b>' + p.value + '</b>'; }
+                }),
+                grid: { left: 90, right: 50, top: 50, bottom: 20 },
+                title: { text: '城市职位数量分布（地图加载失败，降级显示）', left: 'center', top: 6,
+                         textStyle: { fontSize:14, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+                xAxis: {
+                    type: 'value', name: '职位数',
+                    nameTextStyle: { color: SOFT_COLOR, fontSize: 12 },
+                    axisLine: { show: false },
+                    splitLine: { lineStyle: { color: '#EDEFE8' } },
+                    axisLabel: { color: SOFT_COLOR, fontSize: 12 }
+                },
+                yAxis: {
+                    type: 'category', data: cities.reverse(),
+                    axisLine: { lineStyle: { color: '#D7D9CB' } },
+                    axisTick: { show: false },
+                    axisLabel: { color: TEXT_COLOR, fontSize: 13, fontWeight: 500 },
+                    inverse: true
+                },
+                series: [{
+                    type: 'bar', data: counts.reverse(),
+                    barWidth: '60%',
+                    itemStyle: {
+                        borderRadius: [0,4,4,0],
+                        color: function(p){ return COLORS[p.dataIndex % COLORS.length]; }
+                    },
+                    label: { show: true, position: 'right', color: SOFT_COLOR, fontSize: 12, fontWeight: 600 }
+                }]
+            });
+        });
     window.addEventListener('resize', function(){ chart.resize(); });
 })();
+{% endif %}
 
-// ---------- 1. 薪资分布柱状图 ----------
+// ---------- 薪资分布 ----------
+{% if section == 'salary' %}
 (function(){
     var dom = document.getElementById('salary_chart');
+    if(!dom) return;
     var chart = echarts.init(dom);
     var cats = ['<5k','5-8k','8-11k','11-14k','14-17k','17-20k','20-23k','23k+'];
     var vals = {{ xz|tojson }};
@@ -153,25 +492,21 @@ const tip = {
             barWidth: '55%',
             itemStyle: {
                 borderRadius: [4,4,0,0],
-                color: function(p){
-                    return COLORS[p.dataIndex % COLORS.length];
-                }
+                color: function(p){ return COLORS[p.dataIndex % COLORS.length]; }
             },
-            emphasis: {
-                itemStyle: { color: '#A33B2E' }
-            },
-            label: {
-                show: true, position: 'top',
-                color: SOFT_COLOR, fontSize: 12, fontWeight: 600
-            }
+            emphasis: { itemStyle: { color: '#A33B2E' } },
+            label: { show: true, position: 'top', color: SOFT_COLOR, fontSize: 12, fontWeight: 600 }
         }]
     });
     window.addEventListener('resize', function(){ chart.resize(); });
 })();
+{% endif %}
 
-// ---------- 2. 学历饼图 ----------
+// ---------- 学历占比 ----------
+{% if section == 'xueli' %}
 (function(){
     var dom = document.getElementById('xueli_chart');
+    if(!dom) return;
     var chart = echarts.init(dom);
     var data = {{ xl|tojson }};
     chart.setOption({
@@ -182,27 +517,27 @@ const tip = {
         title: { text: '学历占比', left: 'center', top: 8, textStyle: { fontSize: 16, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
         series: [{
             type: 'pie',
-            radius: ['0%', '70%'],
+            radius: ['0%', '72%'],
             center: ['50%', '55%'],
             data: data.map(function(d){ return { name: d[0], value: d[1] }; }),
             emphasis: {
                 itemStyle: { shadowBlur: 12, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,.2)' },
                 label: { fontSize: 16, fontWeight: 'bold' }
             },
-            label: {
-                color: SOFT_COLOR, fontSize: 12,
-                formatter: '{b}\n{d}%'
-            },
-            labelLine: { length: 10, length2: 8 },
+            label: { color: SOFT_COLOR, fontSize: 13, formatter: '{b}\n{d}%' },
+            labelLine: { length: 12, length2: 10 },
             itemStyle: { borderColor: '#EDEFE8', borderWidth: 2 }
         }]
     });
     window.addEventListener('resize', function(){ chart.resize(); });
 })();
+{% endif %}
 
-// ---------- 3. 经验饼图 ----------
+// ---------- 经验占比 ----------
+{% if section == 'jinyan' %}
 (function(){
     var dom = document.getElementById('jinyan_chart');
+    if(!dom) return;
     var chart = echarts.init(dom);
     var data = {{ jy|tojson }};
     chart.setOption({
@@ -213,7 +548,7 @@ const tip = {
         title: { text: '经验要求占比', left: 'center', top: 8, textStyle: { fontSize: 16, fontFamily: "'Noto Serif SC',serif", fontWeight: 700, color: TEXT_COLOR } },
         series: [{
             type: 'pie',
-            radius: ['0%', '70%'],
+            radius: ['0%', '72%'],
             center: ['50%', '55%'],
             data: data.map(function(d){ return { name: d[0], value: d[1] }; }),
             emphasis: {
@@ -221,75 +556,101 @@ const tip = {
                 label: { fontSize: 16, fontWeight: 'bold' }
             },
             label: {
-                color: SOFT_COLOR, fontSize: 12,
-                formatter: function(p){
-                    return p.percent < 3 ? '' : p.name + '\n' + p.percent + '%';
-                }
+                color: SOFT_COLOR, fontSize: 13,
+                formatter: function(p){ return p.percent < 3 ? '' : p.name + '\n' + p.percent + '%'; }
             },
-            labelLine: {
-                length: 8, length2: 6,
-                showAbove: true
-            },
+            labelLine: { length: 8, length2: 6, showAbove: true },
             itemStyle: { borderColor: '#EDEFE8', borderWidth: 2 }
         }]
     });
     window.addEventListener('resize', function(){ chart.resize(); });
 })();
+{% endif %}
 
-// ---------- 4. 城市分布横向柱状图 ----------
+// ---------- 高频热词（圆形螺旋，容器整体呼吸） ----------
+{% if section == 'wordcloud' %}
 (function(){
-    var dom = document.getElementById('city_chart');
-    var chart = echarts.init(dom);
-    var data = {{ city_data|tojson }};
-    // data: [[city, count], ...]
-    var cities = data.map(function(d){ return d[0]; });
-    var counts = data.map(function(d){ return d[1]; });
+    var container = document.getElementById('wordcloud_container');
+    if(!container) return;
+    {% if wc_data and wc_data.words %}
+    var words = {{ wc_data.words|tojson }};
+    var CLRS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
+                '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
 
-    chart.setOption({
-        color: COLORS,
-        tooltip: Object.assign({}, tip, {
-            formatter: function(p){ return '<b>' + p.name + '</b><br/>职位数: <b>' + p.value + '</b>'; }
-        }),
-        grid: { left: 80, right: 50, top: 50, bottom: 20 },
-        title: { text: '城市职位数量分布', left: 'center', top: 6, textStyle: { fontSize: 16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
-        xAxis: {
-            type: 'value', name: '职位数',
-            nameTextStyle: { color: SOFT_COLOR, fontSize: 12 },
-            axisLine: { show: false },
-            splitLine: { lineStyle: { color: '#EDEFE8' } },
-            axisLabel: { color: SOFT_COLOR, fontSize: 12 }
-        },
-        yAxis: {
-            type: 'category', data: cities.reverse(),
-            axisLine: { lineStyle: { color: '#D7D9CB' } },
-            axisTick: { show: false },
-            axisLabel: { color: TEXT_COLOR, fontSize: 13, fontWeight: 500 },
-            inverse: true
-        },
-        series: [{
-            type: 'bar', data: counts.reverse(),
-            barWidth: '60%',
-            itemStyle: {
-                borderRadius: [0,4,4,0],
-                color: function(p){
-                    return COLORS[p.dataIndex % COLORS.length];
-                }
-            },
-            label: {
-                show: true, position: 'right',
-                color: SOFT_COLOR, fontSize: 12, fontWeight: 600
-            }
-        }]
+    // 频率 → 字号映射
+    var maxVal = words[0][1], minVal = words[words.length-1][1];
+    function valToSize(v){ return 14 + Math.round((v - minVal) / Math.max(maxVal-minVal,1) * 36); }
+
+    // 圆形螺旋布局
+    var goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    function layoutSpiral(W, H) {
+        var cx = W / 2, cy = H / 2;
+        var maxR = Math.min(W, H) * 0.48;
+        var maxI = Math.max(words.length - 1, 1);
+        var coeff = maxR / Math.sqrt(maxI);
+        var items = [];
+        for (var i = 0; i < words.length; i++) {
+            var angle = i * goldenAngle;
+            var radius = Math.sqrt(i) * coeff;
+            var x = cx + Math.cos(angle) * radius;
+            var y = cy + Math.sin(angle) * radius;
+            items.push({
+                text: words[i][0],
+                size: valToSize(words[i][1]),
+                x: x, y: y,
+                color: CLRS[i % CLRS.length]
+            });
+        }
+        return items;
+    }
+
+    var items = layoutSpiral(container.clientWidth, container.clientHeight);
+
+    function renderItems(list) {
+        var frag = document.createDocumentFragment();
+        for (var k = 0; k < list.length; k++) {
+            var it = list[k];
+            var span = document.createElement('span');
+            span.className = 'wc-word';
+            span.textContent = it.text;
+            span.style.cssText =
+                'left:' + it.x + 'px;' +
+                'top:' + it.y + 'px;' +
+                'font-size:' + it.size + 'px;' +
+                'color:' + it.color + ';' +
+                'transform:translate(-50%,-50%);';
+            frag.appendChild(span);
+        }
+        container.appendChild(frag);
+    }
+    renderItems(items);
+
+    // 窗口缩放时重排
+    window.addEventListener('resize', function(){
+        container.innerHTML = '';
+        items = layoutSpiral(container.clientWidth, container.clientHeight);
+        renderItems(items);
     });
-    window.addEventListener('resize', function(){ chart.resize(); });
+    {% endif %}
 })();
+{% endif %}
 
-// ---------- 5. 薪资 vs 经验 交叉分析 ----------
+// ---------- 交叉分析 ----------
+{% if section == 'cross' %}
+// 薪资 vs 经验
 (function(){
     var dom = document.getElementById('cross_exper_chart');
     if(!dom) return;
     var chart = echarts.init(dom);
     var data = {{ cross_exper|tojson }};
+    // 小样本标注：样本量 <= 10 的类别在 x 轴标签加 (n=)；count=0 的折线点不显示
+    var xLabels = data.labels.map(function(lbl, i){
+        var cnt = data.counts[i] || 0;
+        return cnt <= 10 ? lbl + ' (n=' + cnt + ')' : lbl;
+    });
+    var avgData = data.avg_salaries.map(function(v, i){
+        return data.counts[i] > 0 ? v : null;
+    });
     chart.setOption({
         color: ['#2E6E5E','#A33B2E','#9C7F3F'],
         tooltip: Object.assign({}, tip, {
@@ -300,12 +661,12 @@ const tip = {
         }),
         title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
         legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
-        grid: { left: 50, right: 50, top: 55, bottom: 40 },
+        grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {
-            type: 'category', data: data.labels,
+            type: 'category', data: xLabels,
             axisLine: { lineStyle:{color:'#D7D9CB'} },
             axisTick: { show:false },
-            axisLabel: { color:SOFT_COLOR, fontSize:12 }
+            axisLabel: { color:SOFT_COLOR, fontSize:12, interval:0, rotate:0 }
         },
         yAxis: [
             { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
@@ -320,8 +681,8 @@ const tip = {
                 label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
             },
             {
-                name: '平均薪资(k)', type: 'line', data: data.avg_salaries, yAxisIndex: 1,
-                smooth: true, lineStyle: { width:3, color:'#A33B2E' },
+                name: '平均薪资(k)', type: 'line', data: avgData, yAxisIndex: 1,
+                lineStyle: { width:3, color:'#A33B2E' },
                 itemStyle: { color:'#A33B2E' },
                 symbol: 'circle', symbolSize: 8,
                 label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
@@ -331,12 +692,20 @@ const tip = {
     window.addEventListener('resize',function(){ chart.resize(); });
 })();
 
-// ---------- 6. 薪资 vs 学历 交叉分析 ----------
+// 薪资 vs 学历
 (function(){
     var dom = document.getElementById('cross_edu_chart');
     if(!dom) return;
     var chart = echarts.init(dom);
     var data = {{ cross_edu|tojson }};
+    // 小样本标注：样本量 <= 10 的类别在 x 轴标签加 (n=)；count=0 的折线点不显示
+    var xLabels = data.labels.map(function(lbl, i){
+        var cnt = data.counts[i] || 0;
+        return cnt <= 10 ? lbl + ' (n=' + cnt + ')' : lbl;
+    });
+    var avgData = data.avg_salaries.map(function(v, i){
+        return data.counts[i] > 0 ? v : null;
+    });
     chart.setOption({
         color: ['#2E6E5E','#A33B2E','#9C7F3F'],
         tooltip: Object.assign({}, tip, {
@@ -347,12 +716,12 @@ const tip = {
         }),
         title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
         legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
-        grid: { left: 50, right: 50, top: 55, bottom: 40 },
+        grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {
-            type: 'category', data: data.labels,
+            type: 'category', data: xLabels,
             axisLine: { lineStyle:{color:'#D7D9CB'} },
             axisTick: { show:false },
-            axisLabel: { color:SOFT_COLOR, fontSize:12 }
+            axisLabel: { color:SOFT_COLOR, fontSize:12, interval:0, rotate:0 }
         },
         yAxis: [
             { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
@@ -367,8 +736,8 @@ const tip = {
                 label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
             },
             {
-                name: '平均薪资(k)', type: 'line', data: data.avg_salaries, yAxisIndex: 1,
-                smooth: true, lineStyle: { width:3, color:'#A33B2E' },
+                name: '平均薪资(k)', type: 'line', data: avgData, yAxisIndex: 1,
+                lineStyle: { width:3, color:'#A33B2E' },
                 itemStyle: { color:'#A33B2E' },
                 symbol: 'circle', symbolSize: 8,
                 label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
@@ -377,6 +746,8 @@ const tip = {
     });
     window.addEventListener('resize',function(){ chart.resize(); });
 })();
+{% endif %}
+
 </script>
 
 {% endblock %}

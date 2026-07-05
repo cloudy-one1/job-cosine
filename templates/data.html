@@ -17,11 +17,11 @@
 
     @keyframes floatPulse {
         0%, 100% {
-            transform: translateY(0);
+            transform: translateY(0) scale(1.25);
             text-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
         }
         50% {
-            transform: translateY(-5px);
+            transform: translateY(-5px) scale(1.25);
             text-shadow: 0 5px 14px rgba(37, 99, 235, 0.45);
         }
     }
@@ -38,6 +38,7 @@
                placeholder="城市,如: 北京,上海" style="flex:1; min-width:160px;">
         <button class="btn btn-info" type="submit">搜索</button>
     </div>
+    <p style="margin:6px 0 0 0; font-size:12px; color:var(--ink-soft);">注：精确匹配，请输入完整岗位名称或城市</p>
 </form>
 
 <div class="card" data-no="共 {{ total }} 条记录">

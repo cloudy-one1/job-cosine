@@ -157,9 +157,9 @@
             <ul class="nav navbar-nav">
                 <li><a href="/">首页</a></li>
                 <li><a href="/list">数据展示</a></li>
-                <li><a href="/chart">图表分析</a></li>
+                <li><a href="/chart/city">数据可视化</a></li>
                 <li><a href="/ml">机器学习分析</a></li>
-                <li><a href="/advice">求职建议Agent</a></li>
+                <li><a href="/advice">求职小助手</a></li>
             </ul>
         </div>
     </nav>
@@ -167,5 +167,6 @@
     <div class="container-main">
         {% block content %}{% endblock %}
     </div>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -54,6 +54,7 @@ static/wordcloud.png
 node_modules/
 venv/
 .debug
+test_output.txt
 
 .DS_Store
 Thumbs.db

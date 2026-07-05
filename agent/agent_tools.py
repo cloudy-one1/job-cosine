@@ -189,7 +189,7 @@ def extract_skills(keyword: str = '', top_n: int = 15) -> dict:
     import jieba
     import re
 
-    # ========== 技术关键词库(正则精确匹配) ==========
+    # ========== 专业技能关键词库(正则精确匹配,跨行业) ==========
     _TECH_TERMS = [
         # 编程语言
         'Python', 'Java', 'C++', 'C#', 'JavaScript', 'TypeScript',
@@ -238,6 +238,39 @@ def extract_skills(keyword: str = '', top_n: int = 15) -> dict:
         'Git', 'SVN', 'RESTful', 'API', '微服务', '分布式',
         '高并发', '敏捷', 'Scrum', '多线程', 'MES', 'ERP', 'WMS',
         'ROS', 'SLAM', 'AGV', '机器视觉', 'Halcon',
+        # ===== 财务管理 =====
+        '金蝶', '用友', 'SAP', 'Oracle财务', 'QuickBooks',
+        '财务报表', '总账', '应收应付', '成本核算', '预算管理',
+        '纳税申报', '税务筹划', '审计准则', '会计准则', '内控',
+        # ===== 人力资源 =====
+        '招聘', '培训', '绩效考核', '薪酬管理', '社保公积金',
+        '员工关系', '组织发展', '人才盘点', '胜任力模型',
+        # ===== 销售/市场 =====
+        'CRM', '客户关系管理', '销售漏斗', '谈判技巧',
+        '市场调研', '品牌推广', '活动策划', '竞品分析',
+        # ===== 设计创意 =====
+        'Photoshop', 'Illustrator', 'Figma', 'Sketch',
+        'After Effects', 'Premiere', 'InDesign', 'CorelDRAW',
+        'Blender', '3ds Max', 'Maya', 'Cinema 4D',
+        'Rhino', 'SketchUp', 'Axure', '蓝湖',
+        # ===== 医疗/制药 =====
+        'GMP', 'GSP', 'FDA', 'NMPA', '临床研究',
+        '医疗器械', '药典', '制剂', '药理',
+        # ===== 法律法务 =====
+        '合同法', '公司法', '劳动法', '诉讼法', '仲裁',
+        '知识产权法', '专利', '商标', '尽调',
+        # ===== 教育培训 =====
+        '教案', '课件', '班级管理', '课程设计', '教学设计',
+        # ===== 传媒 =====
+        '公众号', '抖音', '快手', '短视频', '直播运营',
+        '拍摄', '脚本', '编导', '后期制作',
+        # ===== 物流/制造 =====
+        'WMS', 'TMS', '精益生产', '6S', '5S',
+        'ISO9001', 'ISO13485', '六西格玛', '看板管理',
+        # ===== 通用技能 =====
+        '项目管理', '时间管理', '沟通协调', '团队管理',
+        '数据分析', 'Excel', 'PPT', 'Word', 'Outlook',
+        '英语', '日语', '韩语', '德语', '法语',
     ]
     _tech_re = re.compile(
         '|'.join(re.escape(t) for t in sorted(_TECH_TERMS, key=len, reverse=True)),
@@ -383,12 +416,9 @@ TOOLS = {
     },
     'compare_jobs': {
         'func': compare_jobs,
-        'description': '并排对比两个城市或两类岗位的薪资水平、职位数量、学历经验要求。参数: dim_type ("city" 或 "category"), a (第一个值), b (第二个值)。例如 compare_jobs("city","北京","上海")。',
+        'description': '并排对比两个城市或两类岗位的薪资水平、职位数量、学历经验要求。参数: dim_type ("city" 或 "category"), a (第一个值), b (第二个值)。例如 compare_jobs("city","北京","上海") 或 compare_jobs("category","后端开发","Web/前端")。',
     },
-    'extract_skills': {
-        'func': extract_skills,
-        'description': '从职位标题中提取高频技能关键词词频。参数: keyword (可选,筛选关键词), top_n (可选,返回前N个,默认15)。例如 extract_skills("Python",10)。',
-    },
+
 }
 
 

@@ -13,6 +13,15 @@
     采集完成: 关键词"{{ keyword }}"{% if city %} · 城市"{{ city }}"{% endif %},
     共抓到 {{ total_count }} 条,成功写入数据库 <span class="mono">{{ success_count }}</span> 条
     (已清空上一次的数据,聚类和预测模型也已重新训练)。
+    {% if pages_collected and pages_per_city %}
+    <br>
+    <small style="color:#666;">
+        各城市翻页情况（目标 {{ pages_per_city }} 页/城）：
+        {% for city_name, pg in pages_collected.items() %}
+            {{ city_name }}: {{ pg }} 页{% if not loop.last %} · {% endif %}
+        {% endfor %}
+    </small>
+    {% endif %}
     <br>
     <a href="/list?kw={{ keyword }}&city={{ city }}">查看刚采集的数据 →</a> ·
     <a href="/chart">查看更新后的图表 →</a> ·

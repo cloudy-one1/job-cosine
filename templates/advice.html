@@ -39,11 +39,6 @@
         border-bottom: 1px solid var(--line); font-size: 13px; }
     .compare-stat .stat-label { color: var(--ink-soft); }
     .compare-stat .stat-value { font-weight: 600; }
-    .skill-tag {
-        display: inline-block; padding: 4px 12px; margin: 3px; border-radius: 12px;
-        background: var(--teal-soft); color: var(--teal); font-size: 13px; font-weight: 500;
-    }
-    .skill-tag .skill-count { color: var(--ink-soft); font-size: 11px; margin-left: 4px; }
 </style>
 
 <div style="display:flex; align-items:center; gap:18px; margin-bottom:6px;">
@@ -64,9 +59,6 @@
     </button>
     <button class="tab-btn {% if active_tab == 'compare' %}active{% endif %}" data-tab="compare" onclick="switchTab('compare')">
         城市/类别对比
-    </button>
-    <button class="tab-btn {% if active_tab == 'skills' %}active{% endif %}" data-tab="skills" onclick="switchTab('skills')">
-        技能关键词提取
     </button>
 </div>
 
@@ -248,54 +240,6 @@
 
 </div>
 
-<!-- ====== Tab 3: 技能关键词提取 ====== -->
-<div id="tab-skills" class="tab-panel {% if active_tab == 'skills' %}active{% endif %}">
-
-    <div class="card" data-no="技能关键词提取">
-        <form method="post" action="/advice">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="tool" value="skills">
-
-            <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px;">
-                <div class="form-group">
-                    <label>职位关键词（可选，留空则分析全部职位）</label>
-                    <input type="text" class="form-control" name="keyword"
-                           placeholder="例如：Python 或 爬虫"
-                           value="{{ skills_keyword or '' }}">
-                </div>
-                <div class="form-group">
-                    <label>返回前 N 个高频词</label>
-                    <input type="number" class="form-control" name="top_n"
-                           min="1" max="30" value="{{ skills_top_n or 15 }}">
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-info">提取技能词</button>
-        </form>
-    </div>
-
-    {% if skills_error %}
-    <div class="alert alert-danger" style="margin-top:20px;">{{ skills_error }}</div>
-    {% endif %}
-
-    {% if skills_result %}
-    <div class="card" data-no="提取结果" style="margin-top:20px;">
-        <p style="margin-bottom:10px; color:var(--ink-soft); font-size:14px;">
-            关键词「{{ skills_result.keyword }}」下共 <strong>{{ skills_result.total_jobs }}</strong> 个职位，高频技能词如下：
-        </p>
-        {% if skills_result.skills %}
-        <div style="line-height:2.2;">
-            {% for s in skills_result.skills %}
-            <span class="skill-tag">{{ s.skill }}<span class="skill-count">{{ s.count }}</span></span>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p style="color:var(--ink-soft);">{{ skills_result.message or '未提取到技能词' }}</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-</div>
 
 <script>
 function switchTab(name) {

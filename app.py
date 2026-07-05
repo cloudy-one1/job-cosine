@@ -21,6 +21,7 @@
 """
 import os
 import sys
+import json
 import warnings
 
 # 消掉 jieba → pkg_resources 的弃用警告
@@ -243,7 +244,9 @@ def _get_clustering():
 
 @app.route('/')
 def index():
-    return render_template('input.html')
+    from data.python_job_scraper import get_province_city_map
+    city_map = get_province_city_map()
+    return render_template('input.html', city_map_json=json.dumps(city_map, ensure_ascii=False))
 
 
 @app.route('/list')
@@ -263,12 +266,12 @@ def list_data():
     conditions = []
     params = []
     if kw:
-        conditions.append("post LIKE ?")
-        params.append(f'%{kw}%')
+        conditions.append("LOWER(post) = LOWER(?)")
+        params.append(kw)
     if cities:
-        city_conditions = " OR ".join(["address LIKE ?"] * len(cities))
+        city_conditions = " OR ".join(["LOWER(address) = LOWER(?)"] * len(cities))
         conditions.append(f"({city_conditions})")
-        params.extend([f'%{c}%' for c in cities])
+        params.extend(cities)
     where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
     db = get_db()
@@ -323,7 +326,11 @@ def job_detail(job_id):
 
 
 @app.route('/chart')
-def chart():
+@app.route('/chart/<section>')
+def chart(section='city'):
+    valid_sections = {'city', 'salary', 'xueli', 'jinyan', 'wordcloud', 'cross'}
+    if section not in valid_sections:
+        section = 'city'
     import analysis.xinzi as xinzi
     import analysis.xueli as xueli
     import analysis.jinyan as jinyan
@@ -337,9 +344,9 @@ def chart():
     cross_exper = cross.salary_vs_exper()
     cross_edu = cross.salary_vs_edu()
     wc_data = generate_wordcloud_data(top_n=60)
-    return render_template('h.html', xz=xz, xl=xl, jy=jy, city_data=city_data,
-                           cross_exper=cross_exper, cross_edu=cross_edu,
-                           wc_data=wc_data)
+    return render_template('h.html', section=section, xz=xz, xl=xl, jy=jy,
+                           city_data=city_data, cross_exper=cross_exper,
+                           cross_edu=cross_edu, wc_data=wc_data)
 
 
 def _safe_model_metrics(mc):
@@ -464,12 +471,17 @@ def collect():
         pages = 2
     pages = max(1, min(pages, 5))  # 安全上限,防止单次请求耗时过长
 
+    sort_type = request.form.get('sort_type', '0')
+    if sort_type not in ('0', '1'):
+        sort_type = '0'
+
     if not keyword:
         return render_template('collect.html', error='请输入采集关键词')
 
-    _logger.info('采集开始: 关键词=%s, 城市=%s, 页数=%d', keyword, cities, pages)
+    sort_label = {'0': '综合排序', '1': '最新发布'}.get(sort_type, '未知')
+    _logger.info('采集开始: 关键词=%s, 城市=%s, 页数=%d, 排序=%s', keyword, cities, pages, sort_label)
     try:
-        jobs = scrape_jobs(keyword, cities, pages_per_city=pages)
+        jobs, pages_collected = scrape_jobs(keyword, cities, pages_per_city=pages, sort_type=sort_type)
     except Exception as e:
         _logger.error('采集异常: %s', e)
         # 不把原始异常信息直接抛给前端,避免泄露内部路径/堆栈信息
@@ -510,16 +522,18 @@ def collect():
         )
     db.commit()
 
-    # 数据变了,聚类和薪资预测模型(在app启动时算过一次缓存住)
-    # 也要跟着重新算一遍,否则 /chart 和 /ml 页面会显示基于旧数据的结果
+    # 数据变了,聚类和薪资预测模型也要跟着重新算一遍
+    # 否则 /chart 和 /ml 页面会显示基于旧数据的结果
     global _clustering_cache
     import joblib as _joblib
     import modeling.job_clustering as job_clustering
     import modeling.salary_predict as salary_predict
+    import modeling.cache as _mcache
     _cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
     _cluster_path = os.path.join(_cache_dir, 'clustering_result.joblib')
     _salary_path = os.path.join(_cache_dir, 'salary_model.joblib')
     try:
+        _mcache.invalidate()  # 清空旧模型缓存,强制重新训练
         _clustering_cache = job_clustering.run_clustering()
         _joblib.dump(_clustering_cache, _cluster_path)
         salary_result = salary_predict.train_and_evaluate()
@@ -532,6 +546,7 @@ def collect():
     return render_template(
         'collect.html', success_count=success, total_count=len(jobs),
         keyword=keyword, city=city_raw,
+        pages_per_city=pages, pages_collected=pages_collected,
     )
 
 
@@ -577,23 +592,6 @@ def advice():
                                    compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
         return render_template('advice.html', compare_result=compare_result,
                                compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
-
-    # --- 技能关键词提取工具 ---
-    if tool == 'skills':
-        keyword = request.form.get('keyword', '').strip()
-        try:
-            top_n = int(request.form.get('top_n', 15))
-        except (ValueError, TypeError):
-            top_n = 15
-        top_n = max(1, min(top_n, 30))
-        try:
-            from agent.agent_tools import extract_skills as extract_skills_fn
-            skills_result = extract_skills_fn(keyword or '', top_n)
-        except Exception:
-            return render_template('advice.html', skills_error='技能提取失败,请稍后重试',
-                                   skills_keyword=keyword, skills_top_n=top_n, active_tab='skills')
-        return render_template('advice.html', skills_result=skills_result,
-                               skills_keyword=keyword, skills_top_n=top_n, active_tab='skills')
 
     # 未知工具类型，回退到 Agent
     return render_template('advice.html', error='未知工具类型', active_tab='agent')

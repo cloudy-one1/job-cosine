@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
     print('\n预测示例:')
     for city, cat, edu, exp in [
-        ('北京', '爬虫工程师', '本科', '3-5年'),
+        ('北京', '后端开发', '本科', '3-5年'),
         ('上海', '后端开发', '大专', '1-3年'),
     ]:
         pred = predict_salary(result['model'], city, cat, edu, exp)

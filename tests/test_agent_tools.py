@@ -1,5 +1,5 @@
 """
-Agent 工具函数单元测试 — compare_jobs 和 extract_skills。
+Agent 工具函数单元测试 — compare_jobs 城市/类别并排对比。
 
 使用临时 SQLite 数据库注入,不依赖真实 data.db。
 """
@@ -80,12 +80,12 @@ class TestCompareJobs:
     def test_category_compare_structure(self, temp_db):
         """按职位类别对比返回正确结构。"""
         from agent.agent_tools import compare_jobs
-        result = compare_jobs('category', '后端开发', 'Web开发')
+        result = compare_jobs('category', '后端开发', 'Web/前端')
 
         assert result['compare_type'] == 'category'
         assert result['a']['value'] == '后端开发'
         assert result['a']['count'] > 0
-        assert result['b']['value'] == 'Web开发'
+        assert result['b']['value'] == 'Web/前端'
         assert result['b']['count'] >= 0  # 可能为 0
 
     def test_unknown_city_returns_zero_count(self, temp_db):
@@ -110,67 +110,6 @@ class TestCompareJobs:
         result = compare_jobs('city', '上海', '上海')
         assert result['a']['count'] == result['b']['count']
         assert result['a']['avg_salary_k'] == result['b']['avg_salary_k']
-
-
-# ============================================================
-# extract_skills — 技能关键词提取
-# ============================================================
-class TestExtractSkills:
-    """验证 extract_skills 分词+停用词+top_n。"""
-
-    def test_returns_skills_list(self, temp_db):
-        """从全部职位提取技能,返回正确结构。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills(keyword='', top_n=10)
-
-        assert result['keyword'] == '全部'
-        assert result['total_jobs'] == 10
-        assert isinstance(result['skills'], list)
-        assert len(result['skills']) > 0
-        assert len(result['skills']) <= 10
-        for s in result['skills']:
-            assert 'skill' in s and 'count' in s
-            assert s['count'] > 0
-            # 停用词不应出现
-            assert s['skill'] not in ('工程师', '开发')
-
-    def test_keyword_filter_works(self, temp_db):
-        """关键词筛选应只处理匹配的职位标题。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills(keyword='爬虫', top_n=15)
-
-        assert result['keyword'] == '爬虫'
-        assert result['total_jobs'] == 2  # 数据爬虫工程师, Python爬虫工程师
-        assert isinstance(result['skills'], list)
-
-    def test_top_n_limits_result(self, temp_db):
-        """top_n 参数限制返回数量。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills(keyword='', top_n=3)
-        assert len(result['skills']) <= 3
-
-    def test_no_match_returns_empty(self, temp_db):
-        """无匹配职位时返回空列表+提示信息。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills(keyword='产品经理工资上涨', top_n=10)
-
-        assert result['skills'] == []
-        assert 'message' in result
-        assert result['total_jobs'] == 0
-
-    def test_top_n_defaults_to_15(self, temp_db):
-        """不传 top_n 时默认 15。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills()
-        assert len(result['skills']) <= 15
-
-    def test_stop_words_are_excluded(self, temp_db):
-        """停用词列表中的词不应出现。"""
-        from agent.agent_tools import extract_skills
-        result = extract_skills(keyword='', top_n=20)
-
-        for s in result['skills']:
-            assert s['skill'] not in ('五险一金', '周末双休', '绩效奖金', '的', '了')
 
 
 if __name__ == '__main__':

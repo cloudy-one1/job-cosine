@@ -426,6 +426,29 @@ CITY_CODES = {
     "其他": "366000",
 }
 
+# 省份代码前缀 → 省份名称（用于前端省份-城市级联选择）
+PROVINCE_MAP = {
+    '01': '北京', '02': '上海', '03': '广东', '04': '深圳',
+    '05': '天津', '06': '重庆', '07': '江苏', '08': '浙江',
+    '09': '四川', '10': '海南', '11': '福建', '12': '山东',
+    '13': '江西', '14': '广西', '15': '安徽', '16': '河北',
+    '17': '河南', '18': '湖北', '19': '湖南', '20': '陕西',
+    '21': '山西', '22': '黑龙江', '23': '辽宁', '24': '吉林',
+    '25': '云南', '26': '贵州', '27': '甘肃', '28': '内蒙古',
+    '29': '宁夏', '30': '西藏', '31': '新疆', '32': '青海',
+    '36': '国外',
+}
+
+
+def get_province_city_map():
+    """返回 {省份名: [(城市名, 城市代码), ...]} 的映射,用于前端级联选择"""
+    grouped = {}
+    for city, code in CITY_CODES.items():
+        prefix = code[:2]
+        province = PROVINCE_MAP.get(prefix, f'其他({prefix})')
+        grouped.setdefault(province, []).append((city, code))
+    return grouped
+
 # 中文城市名 → 拼音映射(用于构建 51job 原始链接 URL, pypinyin 自动生成)
 CITY_PINYIN = {
     "七台河": "qitaihe",
@@ -862,7 +885,7 @@ def resolve_city_code(city_name):
     return None
 
 
-def build_api_params(keyword, job_area, page_num):
+def build_api_params(keyword, job_area, page_num, sort_type='0'):
     return {
         'api_key': '51job',
         'timestamp': int(time.time() * 1000),
@@ -870,7 +893,7 @@ def build_api_params(keyword, job_area, page_num):
         'searchType': '2',
         'jobArea': job_area,
         'issueDate': '4',
-        'sortType': '0',
+        'sortType': sort_type,
         'pageNum': page_num,
         'keywordType': '2',
         'pageSize': '20',
@@ -880,16 +903,15 @@ def build_api_params(keyword, job_area, page_num):
     }
 
 
-def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
+def scrape_jobs(keyword, cities, pages_per_city=3, sort_type='0', progress_callback=None):
     """
     核心函数: 给定关键词 + 城市名列表,实时采集51job数据。
 
     参数:
         keyword: 搜索关键词,比如 'python' / 'java'
-        cities: 城市名列表,比如 ['北京', '上海'];传 ['全国'] 或空列表时,
-                默认用北京作为WAF验证的入口城市,但只采集这一个城市
-                (大范围"全国"采集会很慢,不建议)
+        cities: 城市名列表,比如 ['北京', '上海'];传空列表时默认全国范围搜索
         pages_per_city: 每个城市采集几页,每页20条
+        sort_type: 排序方式, '0'=综合排序(默认), '1'=最新发布
         progress_callback: 可选,一个函数(city, page, count) -> None,
                 用于在网页上实时显示采集进度(比如Flask里可以传一个打印日志的函数)
 
@@ -908,11 +930,12 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
             valid_cities.append((c, code))
 
     if not valid_cities:
-        # 没有有效城市,默认用北京当入口
-        valid_cities = [("北京", CITY_CODES["北京"])]
+        # 没有指定城市 → 全国范围搜索
+        valid_cities = [("全国", "000000")]
 
     all_jobs = []
     all_seen = set()
+    pages_collected = {}  # city → 实际翻到的页数
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -959,8 +982,9 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
 
         for city, code in valid_cities:
             _logger.info('开始采集: %s', city)
+            pages_collected[city] = 0
             for pg in range(1, pages_per_city + 1):
-                params = build_api_params(keyword, code, pg)
+                params = build_api_params(keyword, code, pg, sort_type)
                 # 前3页快速翻(模拟正常浏览),后面逐渐放慢避免触发风控
                 delay = random.uniform(0.1, 0.3) if pg <= 3 else random.uniform(0.3, 0.6)
                 time.sleep(delay)
@@ -977,6 +1001,7 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
                 job_list = data.get('resultbody', {}).get('job', {}).get('items', [])
                 if not job_list:
                     break
+                pages_collected[city] += 1
 
                 added = 0
                 for j in job_list:
@@ -1038,7 +1063,7 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
         browser.close()
 
     _logger.info('采集完成: 共 %d 条数据 (关键词=%s, 城市=%s)', len(all_jobs), keyword, cities)
-    return all_jobs
+    return all_jobs, pages_collected
 
 
 if __name__ == '__main__':
@@ -1046,13 +1071,15 @@ if __name__ == '__main__':
     import config
     from data.salary_parser import parse_salary
 
-    jobs = scrape_jobs(
+    jobs, pages_collected = scrape_jobs(
         keyword='python',
         cities=['北京', '上海', '广州', '深圳'],
         pages_per_city=5,
         progress_callback=lambda city, pg, n: print(f'[{city}] 第{pg}页 +{n}条'),
     )
     print(f"\n共采集到 {len(jobs)} 条数据")
+    for city, pg_count in pages_collected.items():
+        print(f"  {city}: 实际翻取 {pg_count} 页")
 
     if not jobs:
         print("没有采集到数据,可能是WAF拦截了这次请求")

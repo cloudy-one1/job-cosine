@@ -20,3 +20,12 @@ def update(result):
     """用外部训练好的结果更新缓存。"""
     global _model_result
     _model_result = result
+
+
+def invalidate():
+    """清空模型缓存,下次 get() 时将重新训练。
+
+    用于数据采集后强制重新训练模型,确保模型反映最新数据。
+    """
+    global _model_result
+    _model_result = None

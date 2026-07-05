@@ -1,5 +1,5 @@
 """
-Flask /advice 路由单元测试 — 覆盖 3-tab 功能（综合Agent、城市对比、技能提取）。
+Flask /advice 路由单元测试 — 覆盖 2-tab 功能（综合Agent、城市对比）。
 
 使用 Flask test_client 发送请求，不启动真实服务器。
 测试态下关闭 CSRF，单独验证 CSRF token 存在性。
@@ -58,19 +58,18 @@ def temp_db(monkeypatch):
 
 
 # ============================================================
-# GET 请求 — 三个 tab 页面渲染
+# GET 请求 — 两个 tab 页面渲染
 # ============================================================
 class TestAdviceGetTabs:
-    """验证 GET /advice 及 ?tool= 参数能正确渲染三个 tab。"""
+    """验证 GET /advice 及 ?tool= 参数能正确渲染两个 tab。"""
 
     def test_get_default_agent_tab(self, client):
-        """GET /advice 默认渲染 Agent 页面，包含三个 tab 按钮。"""
+        """GET /advice 默认渲染 Agent 页面，包含两个 tab 按钮。"""
         resp = client.get('/advice')
         assert resp.status_code == 200
         text = resp.data.decode('utf-8')
         assert '综合建议' in text
         assert '城市/类别对比' in text
-        assert '技能关键词提取' in text
         # 确认 CSRF token 存在于表单中
         assert 'csrf_token' in text
 
@@ -81,14 +80,6 @@ class TestAdviceGetTabs:
         text = resp.data.decode('utf-8')
         assert '对比项 A' in text
         assert '对比项 B' in text
-
-    def test_get_skills_tab(self, client):
-        """GET /advice?tool=skills 渲染技能 tab。"""
-        resp = client.get('/advice?tool=skills')
-        assert resp.status_code == 200
-        text = resp.data.decode('utf-8')
-        assert '提取技能词' in text
-        assert '职位关键词' in text
 
     def test_get_invalid_tool_fallbacks_to_agent(self, client):
         """GET /advice?tool=unknown 回退到 Agent tab。"""
@@ -189,54 +180,6 @@ class TestAdvicePostCompare:
 
 
 # ============================================================
-# POST 请求 — 技能关键词提取模式
-# ============================================================
-class TestAdvicePostSkills:
-    """验证 POST /advice tool=skills 的技能提取功能。"""
-
-    def test_post_skills_with_keyword(self, client, temp_db):
-        """带关键词提取技能，返回结果。"""
-        resp = client.post('/advice', data={
-            'tool': 'skills',
-            'keyword': 'Python',
-            'top_n': 5,
-        })
-        assert resp.status_code == 200
-        text = resp.data.decode('utf-8')
-        # 结果面板应该出现
-        assert '提取结果' in text
-
-    def test_post_skills_without_keyword(self, client, temp_db):
-        """无关键词时分析全部职位。"""
-        resp = client.post('/advice', data={
-            'tool': 'skills',
-            'keyword': '',
-            'top_n': 10,
-        })
-        assert resp.status_code == 200
-        text = resp.data.decode('utf-8')
-        assert '全部' in text or '提取结果' in text
-
-    def test_post_skills_top_n_clamped(self, client, temp_db):
-        """top_n 超出范围自动 clamp 到 1~30。"""
-        resp = client.post('/advice', data={
-            'tool': 'skills',
-            'keyword': '',
-            'top_n': 999,
-        })
-        assert resp.status_code == 200  # 不应报错
-
-    def test_post_skills_invalid_top_n(self, client, temp_db):
-        """top_n 非数字时回退到默认值。"""
-        resp = client.post('/advice', data={
-            'tool': 'skills',
-            'keyword': '',
-            'top_n': 'abc',
-        })
-        assert resp.status_code == 200
-
-
-# ============================================================
 # 边界与回退
 # ============================================================
 class TestAdviceEdgeCases:
@@ -249,12 +192,12 @@ class TestAdviceEdgeCases:
         assert '未知工具类型' in resp.data.decode('utf-8')
 
     def test_csrf_token_present_in_all_forms(self, client):
-        """三个 tab 的表单中都包含 csrf_token 隐藏字段。"""
+        """两个 tab 的表单中都包含 csrf_token 隐藏字段。"""
         resp = client.get('/advice')
         text = resp.data.decode('utf-8')
-        # 数 csrf_token 出现的次数（三个表单各一个）
+        # 数 csrf_token 出现的次数（两个表单各一个）
         count = text.count('csrf_token')
-        assert count >= 3, f'预期至少 3 个 csrf_token，实际 {count}'
+        assert count >= 2, f'预期至少 2 个 csrf_token，实际 {count}'
 
     def test_data_tab_attribute_present(self, client):
         """tab 按钮使用 data-tab 属性（JS 切换依赖）。"""
@@ -262,4 +205,3 @@ class TestAdviceEdgeCases:
         text = resp.data.decode('utf-8')
         assert 'data-tab="agent"' in text
         assert 'data-tab="compare"' in text
-        assert 'data-tab="skills"' in text

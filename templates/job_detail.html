@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 
+<style>
+    .btn-detail {
+        background: linear-gradient(135deg, #FF6B35, #F7931E);
+        border-color: #FF6B35;
+        color: white;
+        transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .btn-detail:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        filter: brightness(1.1);
+    }
+</style>
+
 <p class="eyebrow">案卷 NO. 03 · 岗位详情</p>
 <h2 style="margin-bottom:18px;">职位档案详情</h2>
 
@@ -23,8 +37,8 @@
                 ← 返回列表
             </a>
             {% if job.job_url %}
-            <a href="{{ job.job_url }}" target="_blank" class="btn btn-info" style="text-decoration:none; font-size:13px; background:linear-gradient(135deg, #FF6B35, #F7931E); border-color:#FF6B35; color:white;">
-                🔗 查看51job原文
+            <a href="{{ job.job_url }}" target="_blank" class="btn btn-info btn-detail" style="text-decoration:none; font-size:13px;">
+                🔗 查看详情
             </a>
             {% endif %}
         </div>
@@ -53,7 +67,7 @@
 
     {% if job.content %}
     <div>
-        <h4 style="margin:0 0 12px 0; font-size:16px; color:var(--ink);">职位描述与要求</h4>
+        <h4 style="margin:0 0 12px 0; font-size:16px; color:var(--ink);">职位描述与要求 <span style="font-size:12px; color:var(--ink-soft); font-weight:400;">（简略版）</span></h4>
         <div style="padding:16px; background:var(--paper); border-radius:4px; line-height:1.8; white-space:pre-wrap; font-size:14px; color:var(--ink); max-height:400px; overflow-y:auto;">
 {{ job.content }}
         </div>
