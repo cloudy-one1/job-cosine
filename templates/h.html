@@ -4,6 +4,34 @@
 <p class="eyebrow">案卷 NO. 03 · 图表分析</p>
 <h2 style="margin-bottom:20px;">招聘数据可视化</h2>
 
+<!-- 技能词云 -->
+{% if wc_data and wc_data.words and wc_data.words|length > 0 %}
+<div class="card" data-no="技能词云" style="margin-bottom:20px;">
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div id="wordcloud_chart" style="flex:2; min-width:400px; height:440px;"></div>
+        <div style="flex:1; min-width:200px; max-height:440px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:13px;">
+            <h4 style="margin:0 0 10px; color:#1C2620; font-size:14px;">🔥 高频技能 TOP 20</h4>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid #D7D9CB;">
+                        <th style="text-align:left; padding:4px 8px; color:#5E665A; font-weight:500;">关键词</th>
+                        <th style="text-align:right; padding:4px 8px; color:#5E665A; font-weight:500;">出现次数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in wc_data.words[:20] %}
+                    <tr style="border-bottom:1px solid #EDEFE8; {% if loop.first %}font-weight:700; color:#A33B2E;{% endif %}">
+                        <td style="padding:3px 8px;">{{ item[0] }}</td>
+                        <td style="text-align:right; padding:3px 8px;">{{ item[1] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 薪资分布 -->
 <div class="card" data-no="薪资分布">
     <div id="salary_chart" style="width:100%; height:400px;"></div>
@@ -35,6 +63,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
 // ---------- 主题色 ----------
 const COLORS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A','#1C2620','#C9A96E','#8B4A3A'];
@@ -48,6 +77,52 @@ const tip = {
     textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 14 },
     extraCssText: 'border-radius:2px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
 };
+
+// ---------- 0. 技能词云 ----------
+(function(){
+    var dom = document.getElementById('wordcloud_chart');
+    if(!dom) return;
+    var chart = echarts.init(dom);
+    {% if wc_data and wc_data.words %}
+    var words = {{ wc_data.words|tojson }};
+    // 取最大值做归一化
+    var maxCount = words.length > 0 ? words[0][1] : 1;
+    var data = words.map(function(w){
+        return { name: w[0], value: w[1] };
+    });
+    chart.setOption({
+        tooltip: Object.assign({}, tip, {
+            formatter: function(p){ return '<b>' + p.name + '</b><br/>出现次数: <b>' + p.value + '</b>'; }
+        }),
+        series: [{
+            type: 'wordCloud',
+            sizeRange: [14, 56],
+            rotationRange: [-30, 30],
+            rotationStep: 15,
+            gridSize: 8,
+            shape: 'circle',
+            width: '100%',
+            height: '100%',
+            drawOutOfBound: false,
+            layoutAnimation: true,
+            textStyle: {
+                fontFamily: '"Noto Sans SC", sans-serif',
+                fontWeight: 'normal',
+                color: function() {
+                    var clrs = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A',
+                                '#1C2620','#C9A96E','#8B4A3A','#3A6B7F','#7A4E6B'];
+                    return clrs[Math.floor(Math.random() * clrs.length)];
+                }
+            },
+            emphasis: {
+                textStyle: { fontSize: 32, fontWeight: 'bold' }
+            },
+            data: data
+        }]
+    });
+    {% endif %}
+    window.addEventListener('resize', function(){ chart.resize(); });
+})();
 
 // ---------- 1. 薪资分布柱状图 ----------
 (function(){

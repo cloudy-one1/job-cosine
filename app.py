@@ -329,14 +329,17 @@ def chart():
     import analysis.jinyan as jinyan
     import analysis.region as region
     import analysis.cross as cross
+    from analysis.wordcloud_gen import generate_wordcloud_data
     xz = xinzi.xinzi()
     xl = xueli.xuelifun()
     jy = jinyan.jinyanfun()
     city_data = region.regionfun()
     cross_exper = cross.salary_vs_exper()
     cross_edu = cross.salary_vs_edu()
+    wc_data = generate_wordcloud_data(top_n=60)
     return render_template('h.html', xz=xz, xl=xl, jy=jy, city_data=city_data,
-                           cross_exper=cross_exper, cross_edu=cross_edu)
+                           cross_exper=cross_exper, cross_edu=cross_edu,
+                           wc_data=wc_data)
 
 
 def _safe_model_metrics(mc):

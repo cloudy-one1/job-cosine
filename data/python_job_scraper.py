@@ -965,7 +965,7 @@ def scrape_jobs(keyword, cities, pages_per_city=3, progress_callback=None):
                 delay = random.uniform(0.1, 0.3) if pg <= 3 else random.uniform(0.3, 0.6)
                 time.sleep(delay)
                 try:
-                    data = page.evaluate(JS_FETCH_API, params, timeout=25000)  # 留 10s 给 fetch 内部的 15s
+                    data = page.evaluate(JS_FETCH_API, params)
                 except Exception as e:
                     _logger.warning('[%s] 第%d页 evaluate 超时/异常: %s', city, pg, e)
                     break

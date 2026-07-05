@@ -49,6 +49,7 @@ instance/
 
 logs/
 cache/
+static/wordcloud.png
 node_modules/
 venv/
 .debug
