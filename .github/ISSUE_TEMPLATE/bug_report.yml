@@ -1,0 +1,63 @@
+name: Bug 报告
+description: 报告一个可复现的缺陷
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先确认：
+        - 已阅读 README 的「快速开始」并按步骤安装依赖
+        - 未修改过 `config.py` 与 `.env` 之外的源码（若改过请在下方说明）
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 发生了什么？期望的行为是什么？
+      placeholder: 打开 /ml 页面时聚类板块一直转圈，期望 5 秒内出结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 请给出最小复现路径
+      placeholder: |
+        1. 启动 python app.py
+        2. 访问 /collect 采集「Python / 上海」
+        3. 打开 /ml
+        4. 出现错误
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及模块
+      options:
+        - 数据采集 (data/)
+        - 统计分析 (analysis/)
+        - 建模 (modeling/)
+        - AI Agent (agent/)
+        - Web 页面与路由 (app.py / templates/)
+        - 部署 (Docker)
+        - 其他 / 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或报错信息
+      description: 粘贴终端或 logs/app.log 中的相关输出（请脱敏密钥）
+      render: shell
+
+  - type: input
+    id: env
+    attributes:
+      label: 运行环境
+      placeholder: Windows 11 / Python 3.11.9 / Chrome 126 / 分支 develop@3e1b8d3
+    validations:
+      required: true

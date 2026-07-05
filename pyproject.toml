@@ -1,0 +1,77 @@
+# job-cosine —— 项目元数据与工具配置集中地
+#
+# 说明：本项目以「克隆后直接 python app.py」的方式运行（见 README 快速开始），
+# 不发布到 PyPI，因此这里只声明 PEP 621 元数据与 pytest 配置，不做打包配置。
+
+[project]
+name = "job-cosine"
+version = "1.0.0"
+description = "招聘数据采集、统计分析与 AI 求职建议一体化平台"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "job-cosine contributors" }]
+keywords = [
+    "job",
+    "recruitment",
+    "data-analysis",
+    "web-scraping",
+    "flask",
+    "playwright",
+    "scikit-learn",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Framework :: Flask",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Natural Language :: Chinese (Simplified)",
+]
+dependencies = [
+    "Flask>=2.0",
+    "Flask-WTF>=1.0",
+    "Flask-Limiter>=3.0",
+    "pandas>=1.3",
+    "numpy>=1.21",
+    "scikit-learn>=1.0",
+    "joblib>=1.2",
+    "jieba>=0.42",
+    "playwright>=1.40",
+    "playwright-stealth>=1.0",
+    "requests>=2.28",
+    "Pillow>=10.0",
+    "PyPDF2>=3.0",
+    "python-docx>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+
+[project.urls]
+Homepage = "https://github.com/cloudy-one1/job-cosine"
+Repository = "https://github.com/cloudy-one1/job-cosine"
+Issues = "https://github.com/cloudy-one1/job-cosine/issues"
+Changelog = "https://github.com/cloudy-one1/job-cosine/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra"
+# sklearn / jieba 的收敛与弃用警告噪声较大，不参与测试输出
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
