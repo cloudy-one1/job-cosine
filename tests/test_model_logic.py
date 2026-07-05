@@ -108,7 +108,7 @@ class TestRunClustering:
         ]
 
         from modeling import job_clustering
-        monkeypatch.setattr(job_clustering, 'get_posts', lambda: mock_posts)
+        monkeypatch.setattr(job_clustering, 'get_posts', lambda: list(enumerate(mock_posts)))
 
         result = job_clustering.run_clustering()
         assert 'k' in result

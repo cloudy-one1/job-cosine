@@ -2,256 +2,241 @@
 {% block content %}
 
 <p class="eyebrow">案卷 NO. 04 · 机器学习分析</p>
-<h2 style="margin-bottom:6px;">规则方法 vs 数据驱动方法</h2>
-<p style="color:var(--ink-soft); max-width:640px; margin-bottom:24px;">
-    {% if clustering %}
-    左边是人工预设关键词规则的分类结果,右边是KMeans从数据里自动发现的聚类结构
-    (k={{ clustering.k }},由轮廓系数自动选出)。两者类别数量、命名方式不同——
-    规则方法可解释性更高,聚类方法不预设类别,完全由数据本身决定分组。
-    {% else %}
-    聚类模型尚未训练,请先执行数据采集。
-    {% endif %}
+<h2 style="margin-bottom:6px;">数据驱动的岗位聚类与薪资预测</h2>
+<p style="color:var(--ink-soft); max-width:760px; margin-bottom:24px;">
+    左侧使用 KMeans 对岗位描述做技能向量聚类(k={{ clustering.k if clustering else '-' }},由轮廓系数自动选出)，
+    右侧用城市+类别+学历+经验训练三模型对比。聚类不预设类别，完全由数据本身决定分组。
 </p>
 
-<!-- 规则 vs 聚类 对比图 -->
-{% if clustering %}
-<div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:20px;">
-    <div class="card" data-no="规则方法分布" style="flex:1; min-width:320px;">
-        <div id="rule_chart" style="width:100%; height:380px;"></div>
+{% if not clustering %}
+<div class="card" data-no="提示">
+    <p style="margin:0; color:var(--ink-soft);">聚类模型尚未训练，请先执行数据采集。</p>
+</div>
+{% else %}
+
+<!-- 统计卡片 -->
+<div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:24px;">
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="样本">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ total_jobs }}</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">参与建模岗位数</div>
     </div>
-    <div class="card" data-no="KMeans聚类" style="flex:1; min-width:320px;">
-        <div id="cluster_chart" style="width:100%; height:380px;"></div>
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="聚类数">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ clustering.k }}</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">自动聚类数</div>
+    </div>
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="最佳模型">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">
+            {% if model_rf_r2 >= model_r2 and model_rf_mae > 0 %}RF{% elif model_mae > 0 %}LR{% else %}-{% endif %}
+        </div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">最佳预测模型</div>
+    </div>
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="MAE">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">
+            {% if model_rf_r2 >= model_r2 and model_rf_mae > 0 %}{{ "%.1f"|format(model_rf_mae) }}{% elif model_mae > 0 %}{{ "%.1f"|format(model_mae) }}{% else %}-{% endif %}
+        </div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">最优模型 MAE(K)</div>
     </div>
 </div>
+
+<!-- 各方向岗位规模与均薪 -->
+<div class="card" data-no="方向规模" style="margin-bottom:20px;">
+    <h3 style="margin-top:0; margin-bottom:12px; font-size:18px;">各方向岗位规模与平均薪资</h3>
+    <div id="cluster_overview" style="width:100%; height:{{ [560, clustering.clusters|length * 78 + 120]|max }}px;"></div>
+</div>
+
+<!-- 模型对比 -->
+<h2 style="margin-top:36px; margin-bottom:6px;">三模型预测效果对比</h2>
+<p style="color:var(--ink-soft); max-width:760px; margin-bottom:18px;">
+    基线仅用城市+类别；线性回归与随机森林额外使用学历+经验。R² 越接近 1 越好，MAE(千元)越低越好。
+</p>
+<div class="card" data-no="模型对比" style="margin-bottom:20px;">
+    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+        <div id="model_r2_chart" style="flex:1; min-width:420px; height:420px;"></div>
+        <div id="model_mae_chart" style="flex:1; min-width:420px; height:420px;"></div>
+    </div>
+</div>
+
+<!-- 方向详情 -->
+<h2 style="margin-top:36px; margin-bottom:6px;">方向详情</h2>
+<p style="color:var(--ink-soft); max-width:760px; margin-bottom:18px;">
+    每个方向展示岗位数、平均薪资区间及代表性技能关键词。
+</p>
+<div style="display:flex; gap:18px; flex-wrap:wrap;">
+    {% for c in clustering.clusters %}
+    <div class="card" style="flex:1 1 300px; min-width:280px; padding:20px 22px 18px; transition: box-shadow .2s;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <h4 style="margin:0; font-size:16px; color:var(--ink);">{{ c.auto_label }}</h4>
+            <span class="mono" style="font-size:13px; color:var(--stamp); font-weight:700;">{{ c.count }} 岗</span>
+        </div>
+        <div style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft); margin-bottom:4px;">
+                <span>均薪 {{ "%.1f"|format(c.avg_salary) }}K</span>
+                <span>{{ c.min_salary }}K - {{ c.max_salary }}K</span>
+            </div>
+            <div style="height:8px; background:#EDEFE8; border-radius:4px; overflow:hidden;">
+                <div style="width:{{ (c.avg_salary / 50 * 100)|round|int if c.avg_salary < 50 else 100 }}%; height:100%; background:var(--stamp); border-radius:4px;"></div>
+            </div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            {% for kw in c.top_keywords[:8] %}
+            <span style="font-size:12px; padding:3px 8px; background:#F7F6F2; border-radius:12px; color:var(--ink-soft);">{{ kw }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 {% endif %}
 
-<!-- 规则分类表 + 聚类详情表 -->
-<div style="display:flex; gap:20px; flex-wrap:wrap;">
-    <div class="card" data-no="规则分类" style="flex:1; min-width:280px;">
-        <table class="table table-striped">
-            <tr><th>类别</th><th>数量</th></tr>
-            {% for category, count in rule_based %}
-            <tr><td>{{ category }}</td><td class="mono">{{ count }}</td></tr>
-            {% endfor %}
-        </table>
-    </div>
-    {% if clustering %}
-    <div class="card" data-no="KMeans聚类详情" style="flex:1; min-width:280px;">
-        <table class="table table-striped">
-            <tr><th>自动标签</th><th>数量</th><th>关键词</th></tr>
-            {% for c in clustering.clusters %}
-            <tr>
-                <td>{{ c.auto_label }}</td>
-                <td class="mono">{{ c.count }}</td>
-                <td style="font-size:12px; color:var(--ink-soft);">{{ c.top_keywords[3:]|join(', ') }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-    </div>
-    {% endif %}
-</div>
-
-<!-- 地区分布 -->
-<h2 style="margin-top:36px; margin-bottom:6px;">地区分布(补充分析)</h2>
-<div class="card" data-no="地区">
-    <div id="region_chart" style="width:100%; height:380px;"></div>
-    <table class="table table-striped" style="margin-top:16px;">
-        <tr><th>城市</th><th>职位数</th></tr>
-        {% for city, count in region_data[:10] %}
-        <tr><td>{{ city }}</td><td class="mono">{{ count }}</td></tr>
-        {% endfor %}
-    </table>
-</div>
-
 <!-- 薪资预测 -->
-<h2 style="margin-top:36px; margin-bottom:6px;">薪资预测模型</h2>
-<div class="card" data-no="模型对比">
+<h2 style="margin-top:36px; margin-bottom:6px;">薪资预测</h2>
+<div class="card" data-no="预测">
     {% if model_ready %}
-    <p style="color:var(--ink-soft); margin-top:0;">
-        用"城市 + 职位类别 + 学历 + 经验"四个特征,对比三种模型的预测效果:
-    </p>
-    <table class="table table-striped" style="margin-top:12px; max-width:600px;">
-        <tr><th>模型</th><th>R²</th><th>MAE (千元)</th></tr>
-        <tr>
-            <td>基线(仅城市+类别,线性回归)</td>
-            <td class="mono">{{ "%.3f"|format(model_old_r2) }}</td>
-            <td class="mono">{{ "%.2f"|format(model_mae if model_old_r2 == 0 else model_mae) }}</td>
-        </tr>
-        <tr>
-            <td>全特征线性回归</td>
-            <td class="mono">{{ "%.3f"|format(model_r2) }}</td>
-            <td class="mono">{{ "%.2f"|format(model_mae) }}</td>
-        </tr>
-        <tr style="{% if model_rf_r2 > model_r2 %}background:#f0faf5{% endif %}">
-            <td>全特征随机森林</td>
-            <td class="mono">{{ "%.3f"|format(model_rf_r2) }}</td>
-            <td class="mono">{{ "%.2f"|format(model_rf_mae) }}</td>
-        </tr>
-    </table>
-    <p style="color:var(--ink-soft); margin-top:10px; font-size:13px;">
-        基准 MAE(猜平均值) <span class="mono">{{ "%.2f"|format(baseline_mae) }}</span> 千元。
-        {% if model_r2 > model_old_r2 %}
-        加入学历+经验后线性回归 R² 有提升,说明这两个特征有额外信息量。
-        {% else %}
-        加入学历+经验后线性回归 R² 没有明显提升,在当前数据量下边际贡献有限。
-        {% endif %}
-        {% if model_rf_r2 > model_r2 %}
-        随机森林 R² 优于线性回归,说明特征与薪资间存在一定非线性关系;
-        {% else %}
-        随机森林 R² 不优于线性回归,说明在当前样本量下关系接近线性或随机森林过拟合;
-        {% endif %}
-        整体 R² 不高也说明薪资受样本量小等因素影响,预测仅供参考。
-    </p>
-    {% else %}
-    <p style="color:var(--ink-soft); margin-top:0;">模型尚未训练,请先执行数据采集后再使用薪资预测功能。</p>
-    {% endif %}
-
-    <form method="post" action="/predict">
+    <form action="/predict" method="post" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:flex; gap:10px; flex-wrap:wrap; max-width:680px;">
-            <input type="text" class="form-control" name="city" placeholder="城市,如: 北京" style="flex:1; min-width:120px;">
-            <input type="text" class="form-control" name="category" placeholder="职位类别,如: 爬虫工程师" style="flex:1; min-width:150px;">
-            <input type="text" class="form-control" name="edu" placeholder="学历(可选),如: 本科" style="flex:1; min-width:120px;">
-            <input type="text" class="form-control" name="exper" placeholder="经验(可选),如: 3-5年" style="flex:1; min-width:120px;">
-            <button type="submit" class="btn btn-info">预测薪资</button>
+        <div style="flex:1; min-width:160px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">城市</label>
+            <input type="text" name="city" class="form-control" placeholder="如：北京" value="{{ request.form.city or '' }}" required>
         </div>
+        <div style="flex:1; min-width:160px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">职位类别</label>
+            <input type="text" name="category" class="form-control" placeholder="如：后端开发" value="{{ request.form.category or '' }}" required>
+        </div>
+        <div style="flex:1; min-width:140px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">学历</label>
+            <input type="text" name="edu" class="form-control" placeholder="默认：不限" value="{{ request.form.edu or '' }}">
+        </div>
+        <div style="flex:1; min-width:140px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px;">经验</label>
+            <input type="text" name="exper" class="form-control" placeholder="默认：经验不限" value="{{ request.form.exper or '' }}">
+        </div>
+        <button type="submit" class="btn btn-primary">开始预测</button>
     </form>
 
     {% if predict_error %}
-    <div class="alert alert-danger" style="margin-top:16px;">{{ predict_error }}</div>
+    <div class="alert alert-warning" style="margin-top:10px;">{{ predict_error }}</div>
     {% endif %}
+
     {% if predict_result %}
-    <div class="alert alert-info" style="margin-top:16px;">
-        {{ predict_result.city }} · {{ predict_result.category }} ·
-        {{ predict_result.edu }} · {{ predict_result.exper }}:
-        预测薪资约 <span class="mono" style="font-size:17px;">{{ predict_result.pred }}</span> 千元/月
-        {% if predict_result.warnings %}
-        <div style="margin-top:10px; font-size:13px; color:var(--stamp);">
-            {% for w in predict_result.warnings %}
-            ⚠ {{ w }}<br>
-            {% endfor %}
+    <div style="background:#F7F6F2; border-left:4px solid var(--stamp); padding:18px 22px; border-radius:6px;">
+        <div style="font-size:15px; margin-bottom:8px;">
+            <strong>{{ predict_result.city }}</strong> · <strong>{{ predict_result.category }}</strong>
+            （{{ predict_result.edu }} / {{ predict_result.exper }}）
         </div>
+        <div style="font-size:32px; font-weight:800; color:var(--stamp); margin-bottom:6px;">
+            {{ predict_result.pred }} <span style="font-size:16px; color:var(--ink-soft); font-weight:500;">K/月</span>
+        </div>
+        {% if predict_cluster_ref %}
+        <div style="font-size:13px; color:var(--ink-soft); margin-bottom:8px;">
+            同方向「{{ predict_cluster_ref.label }}」市场均薪约 {{ predict_cluster_ref.avg_salary }}K（{{ predict_cluster_ref.count }} 个岗位）
+        </div>
+        {% endif %}
+        {% if predict_result.warnings %}
+        <ul style="margin:0; padding-left:18px; color:var(--ink-soft); font-size:13px;">
+            {% for w in predict_result.warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
         {% endif %}
     </div>
     {% endif %}
+    {% else %}
+    <p style="margin:0; color:var(--ink-soft);">薪资预测模型尚未训练，请先采集数据。</p>
+    {% endif %}
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script>
-// ---------- 主题色 ----------
-const COLORS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A','#1C2620','#C9A96E','#8B4A3A'];
-const TEXT_COLOR = '#1C2620';
-const SOFT_COLOR = '#5E665A';
-const tip = {
-    backgroundColor: '#FBFAF6',
-    borderColor: '#D7D9CB',
-    textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 14 },
-    extraCssText: 'border-radius:2px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
-};
-</script>
-
 {% if clustering %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <script>
-// ---------- 规则分类 vs KMeans 聚类 对比柱状图 ----------
 (function(){
-    // 规则
-    var ruleData = {{ rule_based|tojson }};
-    var ruleDom = document.getElementById('rule_chart');
-    if(ruleDom){
-        var rc = echarts.init(ruleDom);
-        rc.setOption({
-            color: COLORS,
-            tooltip: Object.assign({}, tip, {
-                formatter: function(p){ return '<b>' + p.name + '</b><br/>职位数: <b>' + p.value + '</b>'; }
-            }),
-            title: { text: '规则分类分布', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
-            grid: { left: 100, right: 40, top: 50, bottom: 20 },
-            xAxis: { type: 'value', axisLine:{show:false}, splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
-            yAxis: {
-                type: 'category',
-                data: ruleData.map(function(d){ return d[0]; }).reverse(),
-                axisLine: { lineStyle:{color:'#D7D9CB'} }, axisTick: {show:false},
-                axisLabel: { color:TEXT_COLOR, fontSize:13, fontWeight:500 },
-                inverse: true
-            },
-            series: [{
-                type: 'bar',
-                data: ruleData.map(function(d){ return d[1]; }).reverse(),
-                barWidth: '60%',
-                itemStyle: { borderRadius: [0,4,4,0] },
-                label: { show:true, position:'right', color:SOFT_COLOR, fontSize:12 }
-            }]
-        });
-        window.addEventListener('resize',function(){ rc.resize(); });
-    }
+    var TEXT = '#3D3B37';
+    var SOFT = '#6F6D67';
+    var STAMP = '#8C3B32';
+    var COLORS = ['#8C3B32', '#B56557', '#4E6E58', '#7A8F73', '#A59A8B', '#C9B8A8'];
 
-    // 聚类
-    var clustData = {{ clustering.clusters|tojson }};
-    var cDom = document.getElementById('cluster_chart');
-    if(cDom){
-        var cc = echarts.init(cDom);
-        cc.setOption({
-            color: COLORS,
-            tooltip: Object.assign({}, tip, {
-                formatter: function(p){ return '<b>' + p.name + '</b><br/>职位数: <b>' + p.value + '</b>'; }
-            }),
-            title: { text: 'KMeans 聚类 (k=' + {{ clustering.k }} + ')', left: 'center', top: 4, textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
-            grid: { left: 100, right: 40, top: 50, bottom: 20 },
-            xAxis: { type: 'value', axisLine:{show:false}, splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
-            yAxis: {
-                type: 'category',
-                data: clustData.map(function(d){ return d.auto_label; }).reverse(),
-                axisLine: { lineStyle:{color:'#D7D9CB'} }, axisTick: {show:false},
-                axisLabel: { color:TEXT_COLOR, fontSize:12, fontWeight:500 },
-                inverse: true
+    var clusters = {{ clustering.clusters|tojson }};
+    var labels = clusters.map(function(c){ return c.auto_label; });
+    var counts = clusters.map(function(c){ return c.count; });
+    var avgs = clusters.map(function(c){ return c.avg_salary; });
+
+    // 方向规模 + 均薪
+    var overview = echarts.init(document.getElementById('cluster_overview'));
+    overview.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 156, right: 80, top: 20, bottom: 52 },
+        legend: {
+            data: ['岗位数', '均薪(K)'], bottom: 0,
+            textStyle: { color: SOFT, fontSize: 14 }
+        },
+        xAxis: { type: 'value', axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
+                 axisLabel: { color: SOFT, fontSize: 13 } },
+        yAxis: { type: 'category', data: labels.reverse(),
+                 axisLine: {lineStyle:{color:'#D8D6CF'}}, axisTick:{show:false},
+                 axisLabel: { color: TEXT, fontSize: 14, fontWeight: 500 } },
+        series: [
+            {
+                name: '岗位数', type: 'bar', data: counts.reverse(),
+                barWidth: '36%', itemStyle: { borderRadius: [0,3,3,0], color: COLORS[0] },
+                label: { show: true, position: 'right', color: SOFT, fontSize: 13 }
             },
-            series: [{
-                type: 'bar',
-                data: clustData.map(function(d){ return d.count; }).reverse(),
-                barWidth: '60%',
-                itemStyle: { borderRadius: [0,4,4,0] },
-                label: { show:true, position:'right', color:SOFT_COLOR, fontSize:12 }
-            }]
-        });
-        window.addEventListener('resize',function(){ cc.resize(); });
-    }
+            {
+                name: '均薪(K)', type: 'line', data: avgs.reverse(),
+                smooth: true, symbol: 'circle', symbolSize: 7,
+                itemStyle: { color: COLORS[2] }, lineStyle: { width: 2 },
+                yAxisIndex: 0
+            }
+        ]
+    });
+
+    // R2 对比
+    var r2Data = [
+        { name: '基线', value: {{ model_old_r2 }} },
+        { name: '线性回归', value: {{ model_r2 }} },
+        { name: '随机森林', value: {{ model_rf_r2 }} }
+    ];
+    var maxR2 = Math.max.apply(null, r2Data.map(function(d){ return d.value; }));
+    echarts.init(document.getElementById('model_r2_chart')).setOption({
+        title: { text: 'R² 对比 (越高越好)', left:0, top:0,
+                 textStyle: { color: TEXT, fontSize: 16, fontWeight: 700 } },
+        tooltip: { trigger: 'axis' },
+        grid: { left: 16, right: 16, top: 48, bottom: 80 },
+        xAxis: { type: 'category', data: r2Data.map(function(d){return d.name;}),
+                 axisLabel: { color: SOFT, fontSize: 14, rotate: 12, overflow:'truncate', width:110 } },
+        yAxis: { type: 'value', max: Math.min(maxR2 + 0.15, 1),
+                 axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
+                 axisLabel: { color: SOFT, fontSize: 13 } },
+        series: [{
+            type: 'bar', data: r2Data.map(function(d,i){ return { value: d.value, itemStyle: { color: COLORS[i] } }; }),
+            barWidth: 48, itemStyle: { borderRadius: [3,3,0,0] },
+            label: { show: true, position: 'top', color: TEXT, fontSize: 14, fontWeight: 600, formatter: '{c}' }
+        }]
+    });
+
+    // MAE 对比
+    var maeData = [
+        { name: '基线', value: {{ baseline_mae }} },
+        { name: '线性回归', value: {{ model_mae }} },
+        { name: '随机森林', value: {{ model_rf_mae }} }
+    ];
+    var maxMAE = Math.max.apply(null, maeData.map(function(d){ return d.value; }));
+    echarts.init(document.getElementById('model_mae_chart')).setOption({
+        title: { text: 'MAE 对比 (越低越好)', left:0, top:0,
+                 textStyle: { color: TEXT, fontSize: 16, fontWeight: 700 } },
+        tooltip: { trigger: 'axis' },
+        grid: { left: 16, right: 16, top: 48, bottom: 80 },
+        xAxis: { type: 'category', data: maeData.map(function(d){return d.name;}),
+                 axisLabel: { color: SOFT, fontSize: 14, rotate: 12, overflow:'truncate', width:110 } },
+        yAxis: { type: 'value', max: Math.ceil(maxMAE + 1),
+                 axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
+                 axisLabel: { color: SOFT, fontSize: 13 } },
+        series: [{
+            type: 'bar', data: maeData.map(function(d,i){ return { value: d.value, itemStyle: { color: COLORS[i] } }; }),
+            barWidth: 48, itemStyle: { borderRadius: [3,3,0,0] },
+            label: { show: true, position: 'top', color: TEXT, fontSize: 14, fontWeight: 600, formatter: '{c}' }
+        }]
+    });
 })();
 </script>
 {% endif %}
-
-<script>
-// ---------- 地区分布横向柱状图 ----------
-(function(){
-    var data = {{ region_data|tojson }};
-    var dom = document.getElementById('region_chart');
-    if(dom){
-        var chart = echarts.init(dom);
-        chart.setOption({
-            color: COLORS,
-            tooltip: Object.assign({}, tip, {
-                formatter: function(p){ return '<b>' + p.name + '</b><br/>职位数: <b>' + p.value + '</b>'; }
-            }),
-            grid: { left: 80, right: 50, top: 10, bottom: 20 },
-            xAxis: { type: 'value', axisLine:{show:false}, splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
-            yAxis: {
-                type: 'category',
-                data: data.slice(0,12).map(function(d){ return d[0]; }).reverse(),
-                axisLine: { lineStyle:{color:'#D7D9CB'} }, axisTick: {show:false},
-                axisLabel: { color:TEXT_COLOR, fontSize:13, fontWeight:500 },
-                inverse: true
-            },
-            series: [{
-                type: 'bar',
-                data: data.slice(0,12).map(function(d){ return d[1]; }).reverse(),
-                barWidth: '60%',
-                itemStyle: { borderRadius: [0,4,4,0] },
-                label: { show:true, position:'right', color:SOFT_COLOR, fontSize:12 },
-                emphasis: { itemStyle: { color: '#A33B2E' } }
-            }]
-        });
-        window.addEventListener('resize',function(){ chart.resize(); });
-    }
-})();
-</script>
 
 {% endblock %}

@@ -371,15 +371,15 @@ def _safe_model_metrics(mc):
 
 @app.route('/ml')
 def ml_page():
-    import analysis.jobtitle as jobtitle
-    import analysis.region as region
     mc = _model_get()
     metrics = _safe_model_metrics(mc)
+    clustering = _get_clustering()
+    total_jobs = clustering.get('total_jobs', 0) if clustering else 0
+
     return render_template(
         'ml.html',
-        clustering=_get_clustering(),
-        rule_based=jobtitle.jobtitlefun(),
-        region_data=region.regionfun(),
+        clustering=clustering,
+        total_jobs=total_jobs,
         model_ready=mc is not None,
         **metrics
     )
@@ -418,15 +418,40 @@ def predict():
 
     mc = _model_get()
     metrics = _safe_model_metrics(mc)
+    clustering = _get_clustering()
+    total_jobs = clustering.get('total_jobs', 0) if clustering else 0
+
+    predict_cluster_ref = None
+    if predict_result and clustering:
+        category = predict_result['category']
+        best_cluster = None
+        best_score = 0
+        for c in clustering.get('clusters', []):
+            score = 0
+            if category in c.get('auto_label', ''):
+                score += 3
+            for kw in c.get('top_keywords', []):
+                if category in kw or kw in category:
+                    score += 2
+            if score > best_score:
+                best_score = score
+                best_cluster = c
+        if best_cluster:
+            predict_cluster_ref = {
+                'label': best_cluster['auto_label'],
+                'avg_salary': best_cluster.get('avg_salary', 0),
+                'count': best_cluster.get('count', 0),
+            }
+
     return render_template(
         'ml.html',
-        clustering=_get_clustering(),
-        rule_based=jobtitle.jobtitlefun(),
-        region_data=region.regionfun(),
+        clustering=clustering,
+        total_jobs=total_jobs,
         model_ready=mc is not None,
         **metrics,
         predict_error=predict_error,
         predict_result=predict_result,
+        predict_cluster_ref=predict_cluster_ref,
     )
 
 

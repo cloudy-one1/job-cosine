@@ -45,7 +45,7 @@
             background:var(--card); border-bottom:1px solid var(--line); padding:0;
         }
         .navbar .container{
-            max-width:1080px; margin:0 auto; padding:14px 20px;
+            max-width:1480px; margin:0 auto; padding:14px 28px;
             display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
         }
         .navbar-header{ display:flex; flex-direction:column; }
@@ -71,11 +71,11 @@
         ul.nav.navbar-nav li a:hover{ color:var(--ink); border-bottom-color:var(--stamp); }
 
         /* ---------- layout ---------- */
-        .container-main{ max-width:1080px; margin:0 auto; padding:34px 20px 70px; }
+        .container-main{ max-width:1480px; margin:0 auto; padding:34px 28px 70px; }
 
         /* ---------- card / ledger record ---------- */
         .card, .well{
-            background:var(--card); border:1px solid var(--line); border-radius:3px;
+            background:var(--card); border:1px solid var(--line); border-radius:8px;
             padding:28px 30px; position:relative; margin-bottom:10px;
         }
         .card[data-no]::before, .well[data-no]::before{
@@ -97,7 +97,7 @@
         /* ---------- buttons ---------- */
         .btn{
             display:inline-block; font-family:'Noto Sans SC',sans-serif; font-weight:600;
-            font-size:14px; padding:10px 20px; border-radius:2px; border:1px solid var(--ink);
+            font-size:14px; padding:10px 20px; border-radius:6px; border:1px solid var(--ink);
             background:transparent; color:var(--ink); cursor:pointer; transition:.15s ease;
         }
         .btn:hover{ background:var(--ink); color:var(--paper); }
@@ -107,15 +107,15 @@
 
         /* ---------- forms ---------- */
         .form-control{
-            width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:2px;
+            width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:6px;
             background:#fff; font-family:'Noto Sans SC',sans-serif; font-size:14px; color:var(--ink);
         }
         .form-control:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-soft); }
         .form-group{ margin-bottom:16px; }
         .form-group label{ display:block; font-size:13px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
         .input-group{ display:flex; }
-        .input-group .form-control{ border-radius:2px 0 0 2px; }
-        .input-group-btn .btn{ border-radius:0 2px 2px 0; border-left:none; }
+        .input-group .form-control{ border-radius:6px 0 0 6px; }
+        .input-group-btn .btn{ border-radius:0 6px 6px 0; border-left:none; }
 
         /* ---------- table ---------- */
         .table{ width:100%; border-collapse:collapse; }
@@ -130,7 +130,7 @@
         .table-striped tr:nth-child(even) td{ background:var(--paper); }
 
         /* ---------- alerts ---------- */
-        .alert{ padding:14px 18px; border-radius:2px; border-left:4px solid; font-size:14px; }
+        .alert{ padding:14px 18px; border-radius:6px; border-left:4px solid; font-size:14px; }
         .alert-danger{ background:#FBEAE7; border-color:var(--stamp); color:#7A2A20; }
         .alert-info{ background:var(--teal-soft); border-color:var(--teal); color:#1D4F42; }
 
