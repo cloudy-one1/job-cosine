@@ -232,9 +232,14 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## 更新日志（Changelog）
 
+- **2026-07-05 · refactor: ARCHITECTURE.md 正式并入 CODEBUDDY.md，清理废弃文件**
+  - `ARCHITECTURE.md` 删除，全部内容合并到 `.codebuddy/CODEBUDDY.md`（项目唯一真相来源）
+  - 清理废弃文件：`test_output.txt`（临时输出）、`static/china_geo.json`、`static/china_mask.png`、`static/.gitkeep`
+  - 清理 `tests/verify_sql_schema.py`（功能已由其他测试覆盖）
+  - 测试保持 160 passed
+
 - **2026-07-05 · fix: 词云圆形 + 停用词大扩 + 只从标题提取**
   - 词云形状：回退为 `shape: 'circle'`（中国地图 maskImage 效果不稳定，待后续优化）
-  - 提取策略改为只从 `post`（职位标题）分词，排除 `content`（描述）中的福利/公司噪音
   - 提取策略改为只从 `post`（职位标题）分词，排除 `content`（描述）中的福利/公司噪音
   - 停用词新增 80+ 福利/学历/招聘/语言/公司碎片（做五休、病假、全勤、有餐、无需 等）
   - 归一化新增：`安卓→Android`、`OA/ERP/MES/PLM` 缩写、`it→IT`
