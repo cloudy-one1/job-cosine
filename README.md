@@ -232,6 +232,15 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## 更新日志（Changelog）
 
+- **2026-07-05 · feat: 词云形状改为中国地图 + 停用词大扩 + 只从标题提取**
+  - 词云形状：`echarts-wordcloud` + `maskImage` 中国地图轮廓（从阿里云 DataV GeoJSON 自动生成黑白 mask）
+  - 提取策略改为只从 `post`（职位标题）分词，排除 `content`（描述）中的福利/公司噪音
+  - 停用词新增 80+ 福利/学历/招聘/语言/公司碎片（做五休、病假、全勤、有餐、无需 等）
+  - 归一化新增：`安卓→Android`、`OA/ERP/MES/PLM` 缩写、`it→IT`
+  - 正则过滤 `jXXXX` 职位ID碎片
+  - `static/china_mask.png` 首次运行时从 `china_geo.json` 自动生成
+  - 481 条数据验证：Top 20 全部技术关键词，零福利词
+
 - **2026-07-05 · feat: 词云可视化 — /chart 页面新增「技能词云」板块**
   - 新增 `analysis/wordcloud_gen.py`：jieba 分词 + 85 组技术词同义词归一化（CSS3→CSS, vue→Vue 等）+ 120+ 停用词过滤（福利/学历/城市/通用词）
   - `/chart` 页面新增 ECharts 词云图（`echarts-wordcloud` 扩展）+ 右侧 TOP 20 高频关键词排名表
