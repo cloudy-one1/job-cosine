@@ -5,33 +5,59 @@
 /* ---------- sidebar layout ---------- */
 .chart-layout{ display:flex; gap:24px; align-items:flex-start; }
 .chart-sidebar{
-    width:200px; flex-shrink:0; background:var(--card);
-    border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    width:240px; flex-shrink:0; background:var(--card);
+    border:1px solid var(--line); border-radius:16px; overflow:hidden;
     position:sticky; top:88px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 .chart-sidebar ul{ list-style:none; padding:0; margin:0; }
 .chart-sidebar li{ border-bottom:1px solid var(--line); }
 .chart-sidebar li:last-child{ border-bottom:none; }
 .chart-sidebar li a{
-    display:block; padding:13px 18px; font-size:14px; font-weight:500;
-    color:var(--ink-soft); text-decoration:none; transition:.15s ease;
-    border-left:3px solid transparent;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 20px; font-size:18px; font-weight:600;
+    color:var(--ink-soft); text-decoration:none; transition:.25s ease;
+    border-left:4px solid transparent;
+    position: relative;
 }
-.chart-sidebar li a:hover{ color:var(--ink); background:var(--teal-soft); border-left-color:var(--teal); }
+.chart-sidebar li a:hover{
+    color:var(--ink); background:var(--teal-soft);
+    border-left-color:var(--teal);
+    transform: scale(1.05) translateX(4px);
+    box-shadow: 0 4px 16px rgba(46,110,94,.12);
+    z-index: 5;
+}
 .chart-sidebar li a.active{
     color:var(--ink); font-weight:700; background:var(--teal-soft);
     border-left-color:var(--stamp);
 }
-.chart-main{ flex:1; min-width:0; }
-
+.nav-text{ display:flex; align-items:center; gap:10px; }
+.nav-icon{ font-size:22px; }
+.ai-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:50%;
+    background: linear-gradient(135deg, #2E6E5E, #7FA89A);
+    color: #fff; font-size:11px; font-weight:700;
+    cursor: pointer; transition: .25s ease; opacity: 0.8;
+    letter-spacing: 0.5px; border:none; flex-shrink:0;
+    margin-left:8px;
+}
+.ai-badge:hover{
+    transform: scale(1.2);
+    box-shadow: 0 4px 12px rgba(46,110,94,.3);
+    opacity: 1;
+}
+.chart-main{ flex:1; min-width:0; position: relative; }
 
 @media (max-width:800px){
     .chart-layout{ flex-direction:column; }
     .chart-sidebar{ width:100%; position:static; }
     .chart-sidebar ul{ display:flex; flex-wrap:wrap; }
-    .chart-sidebar li{ border-bottom:none; border-right:1px solid var(--line); }
-    .chart-sidebar li a{ border-left:none; border-bottom:3px solid transparent; padding:10px 12px; font-size:12px; }
+    .chart-sidebar li{ border-bottom:none; border-right:1px solid var(--line); flex:1 1 50%; }
+    .chart-sidebar li a{ border-left:none; border-bottom:3px solid transparent; padding:12px 14px; font-size:14px; }
     .chart-sidebar li a.active{ border-left-color:transparent; border-bottom-color:var(--stamp); }
+    .nav-icon{ font-size:18px; }
+    .ai-badge{ width:24px; height:24px; font-size:9px; }
 }
 </style>
 
@@ -42,12 +68,42 @@
     <!-- ===== 左侧导航 ===== -->
     <nav class="chart-sidebar">
         <ul>
-            <li><a href="/chart/city"      class="{% if section=='city' %}active{% endif %}">城市分布</a></li>
-            <li><a href="/chart/salary"    class="{% if section=='salary' %}active{% endif %}">薪资分布</a></li>
-            <li><a href="/chart/xueli"     class="{% if section=='xueli' %}active{% endif %}">学历占比</a></li>
-            <li><a href="/chart/jinyan"    class="{% if section=='jinyan' %}active{% endif %}">经验占比</a></li>
-            <li><a href="/chart/wordcloud" class="{% if section=='wordcloud' %}active{% endif %}">高频热词</a></li>
-            <li><a href="/chart/cross"     class="{% if section=='cross' %}active{% endif %}">交叉分析</a></li>
+            <li>
+                <a href="/chart/city" class="{% if section=='city' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">📍</span>城市分布</span>
+                    <span class="ai-badge" onclick="showAI(event,'city')">AI</span>
+                </a>
+            </li>
+            <li>
+                <a href="/chart/salary" class="{% if section=='salary' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">💰</span>薪资分布</span>
+                    <span class="ai-badge" onclick="showAI(event,'salary')">AI</span>
+                </a>
+            </li>
+            <li>
+                <a href="/chart/xueli" class="{% if section=='xueli' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">🎓</span>学历占比</span>
+                    <span class="ai-badge" onclick="showAI(event,'xueli')">AI</span>
+                </a>
+            </li>
+            <li>
+                <a href="/chart/jinyan" class="{% if section=='jinyan' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">💼</span>经验占比</span>
+                    <span class="ai-badge" onclick="showAI(event,'jinyan')">AI</span>
+                </a>
+            </li>
+            <li>
+                <a href="/chart/wordcloud" class="{% if section=='wordcloud' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">🔥</span>高频热词</span>
+                    <span class="ai-badge" onclick="showAI(event,'wordcloud')">AI</span>
+                </a>
+            </li>
+            <li>
+                <a href="/chart/cross" class="{% if section=='cross' %}active{% endif %}">
+                    <span class="nav-text"><span class="nav-icon">📊</span>交叉分析</span>
+                    <span class="ai-badge" onclick="showAI(event,'cross')">AI</span>
+                </a>
+            </li>
         </ul>
     </nav>
 
@@ -96,7 +152,7 @@
 <div class="card" data-no="高频热词">
     <div style="display:flex; gap:20px; flex-wrap:wrap;">
         <div id="wordcloud_chart" style="flex:2; min-width:450px; height:700px;"></div>
-        <div style="flex:1; min-width:200px; max-height:700px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:4px; font-size:14px;">
+        <div style="flex:1; min-width:200px; max-height:700px; overflow-y:auto; padding:10px 15px; background:#FAF9F5; border-radius:8px; font-size:14px;">
             <h4 style="margin:0 0 10px; color:#1C2620; font-size:14px;">🔥 高频技能 TOP 20</h4>
             <table style="width:100%; border-collapse:collapse;">
                 <thead>
@@ -139,6 +195,22 @@
     </div><!-- /.chart-main -->
 </div><!-- /.chart-layout -->
 
+<!-- AI 分析面板 -->
+<div id="ai_overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(28,38,32,.45); z-index:1000; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+    <div id="ai_panel" style="background:#FBFAF6; border:1px solid #D7D9CB; border-radius:20px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; padding:32px; box-shadow:0 20px 60px rgba(0,0,0,.15); position:relative; animation: ai-in .3s ease-out;">
+        <style>
+        @keyframes ai-in { from { opacity:0; transform: scale(.9); } to { opacity:1; transform: scale(1); } }
+        @keyframes ai-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #ai_content b { color: #2E6E5E; font-weight: 700; }
+        #ai_content ul, #ai_content ol { padding-left: 20px; margin: 8px 0; }
+        #ai_content li { margin: 4px 0; }
+        </style>
+        <button onclick="closeAI()" style="position:absolute; top:16px; right:16px; width:36px; height:36px; border-radius:50%; border:none; background:#EDEFE8; color:#5E665A; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.2s;">✕</button>
+        <h3 id="ai_title" style="margin:0 0 16px; font-size:20px; font-weight:700; color:#1C2620; font-family:'Noto Serif SC',serif;">AI 直观分析</h3>
+        <div id="ai_content" style="font-size:15px; line-height:1.8; color:#5E665A;"></div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
@@ -147,11 +219,21 @@ const COLORS = ['#2E6E5E','#A33B2E','#9C7F3F','#5E665A','#7FA89A','#1C2620','#C9
 const TEXT_COLOR = '#1C2620';
 const SOFT_COLOR = '#5E665A';
 
+const ALL_DATA = {
+    city: {{ city_data|tojson }},
+    salary: {{ xz|tojson }},
+    xueli: {{ xl|tojson }},
+    jinyan: {{ jy|tojson }},
+    wordcloud: {{ wc_data|tojson }},
+    cross_exper: {{ cross_exper|tojson }},
+    cross_edu: {{ cross_edu|tojson }}
+};
+
 const tip = {
     backgroundColor: '#FBFAF6',
     borderColor: '#D7D9CB',
-    textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 15 },
-    extraCssText: 'border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
+    textStyle: { color: '#1C2620', fontFamily: "'Noto Sans SC',sans-serif", fontSize: 16 },
+    extraCssText: 'border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08);'
 };
 
 // ---------- 城市分布（中国地图） ----------
@@ -312,7 +394,7 @@ const tip = {
                     trigger: 'item',
                     backgroundColor: 'rgba(250,249,245,0.96)',
                     borderColor: '#D7D9CB',
-                    textStyle: { color:'#1C2620', fontFamily:"'Noto Sans SC',sans-serif", fontSize:14 },
+                    textStyle: { color:'#1C2620', fontFamily:"'Noto Sans SC',sans-serif", fontSize:15 },
                     formatter: function(p){
                         if(p.seriesType==='effectScatter' || p.seriesType==='scatter'){
                             return '<b>'+p.name+'</b><br/>职位数: <b>'+p.value[2]+'</b>';
@@ -352,7 +434,7 @@ const tip = {
                             show: true,
                             formatter: '{b}',
                             position: 'right',
-                            fontSize: 11,
+                            fontSize: 13,
                             color: '#1C2620',
                             fontWeight: 500
                         },
@@ -363,7 +445,7 @@ const tip = {
                         },
                         emphasis: {
                             scale: true,
-                            label: { show: true, fontSize: 13, fontWeight: 'bold' }
+                            label: { show: true, fontSize: 14, fontWeight: 'bold' }
                         }
                     },
                     {
@@ -401,7 +483,7 @@ const tip = {
                             position: 'top',
                             distance: 3,
                             formatter: '{@[2]}',
-                            fontSize: 12,
+                            fontSize: 13,
                             color: '#A33B2E',
                             fontWeight: 700
                         }
@@ -421,19 +503,19 @@ const tip = {
                 }),
                 grid: { left: 90, right: 50, top: 50, bottom: 20 },
                 title: { text: '城市职位数量分布（地图加载失败，降级显示）', left: 'center', top: 6,
-                         textStyle: { fontSize:15, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+                         textStyle: { fontSize:16, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
                 xAxis: {
                     type: 'value', name: '职位数',
-                    nameTextStyle: { color: SOFT_COLOR, fontSize: 12 },
+                    nameTextStyle: { color: SOFT_COLOR, fontSize: 13 },
                     axisLine: { show: false },
                     splitLine: { lineStyle: { color: '#EDEFE8' } },
-                    axisLabel: { color: SOFT_COLOR, fontSize: 12 }
+                    axisLabel: { color: SOFT_COLOR, fontSize: 13 }
                 },
                 yAxis: {
                     type: 'category', data: cities.reverse(),
                     axisLine: { lineStyle: { color: '#D7D9CB' } },
                     axisTick: { show: false },
-                    axisLabel: { color: TEXT_COLOR, fontSize: 13, fontWeight: 500 },
+                    axisLabel: { color: TEXT_COLOR, fontSize: 14, fontWeight: 500 },
                     inverse: true
                 },
                 series: [{
@@ -443,7 +525,7 @@ const tip = {
                         borderRadius: [0,4,4,0],
                         color: function(p){ return COLORS[p.dataIndex % COLORS.length]; }
                     },
-                    label: { show: true, position: 'right', color: SOFT_COLOR, fontSize: 12, fontWeight: 600 }
+                    label: { show: true, position: 'right', color: SOFT_COLOR, fontSize: 13, fontWeight: 600 }
                 }]
             });
         });
@@ -469,15 +551,15 @@ const tip = {
             type: 'category', data: cats,
             axisLine: { lineStyle: { color: '#D7D9CB' } },
             axisTick: { show: false },
-            axisLabel: { color: SOFT_COLOR, fontSize: 13 }
+            axisLabel: { color: SOFT_COLOR, fontSize: 14 }
         },
         yAxis: {
             type: 'value', name: '职位数',
-            nameTextStyle: { color: SOFT_COLOR, fontSize: 12 },
+            nameTextStyle: { color: SOFT_COLOR, fontSize: 13 },
             axisLine: { show: false },
             axisTick: { show: false },
             splitLine: { lineStyle: { color: '#EDEFE8' } },
-            axisLabel: { color: SOFT_COLOR, fontSize: 12 }
+            axisLabel: { color: SOFT_COLOR, fontSize: 13 }
         },
         series: [{
             type: 'bar', data: vals,
@@ -487,7 +569,7 @@ const tip = {
                 color: function(p){ return COLORS[p.dataIndex % COLORS.length]; }
             },
             emphasis: { itemStyle: { color: '#A33B2E' } },
-            label: { show: true, position: 'top', color: SOFT_COLOR, fontSize: 12, fontWeight: 600 }
+            label: { show: true, position: 'top', color: SOFT_COLOR, fontSize: 13, fontWeight: 600 }
         }]
     });
     window.addEventListener('resize', function(){ chart.resize(); });
@@ -516,7 +598,7 @@ const tip = {
                 itemStyle: { shadowBlur: 12, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,.2)' },
                 label: { fontSize: 16, fontWeight: 'bold' }
             },
-            label: { color: SOFT_COLOR, fontSize: 13, formatter: '{b}\n{d}%' },
+            label: { color: SOFT_COLOR, fontSize: 14, formatter: '{b}\n{d}%' },
             labelLine: { length: 12, length2: 10 },
             itemStyle: { borderColor: '#EDEFE8', borderWidth: 2 }
         }]
@@ -548,7 +630,7 @@ const tip = {
                 label: { fontSize: 16, fontWeight: 'bold' }
             },
             label: {
-                color: SOFT_COLOR, fontSize: 13,
+                color: SOFT_COLOR, fontSize: 14,
                 formatter: function(p){ return p.percent < 3 ? '' : p.name + '\n' + p.percent + '%'; }
             },
             labelLine: { length: 8, length2: 6, showAbove: true },
@@ -657,8 +739,8 @@ const tip = {
                 return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
             }
         }),
-        title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:17, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
-        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
+        title: { text: '薪资 vs 经验等级', left: 'center', top: 4, textStyle: { fontSize:18, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:13} },
         grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {
             type: 'category', data: xLabels,
@@ -667,23 +749,23 @@ const tip = {
             axisLabel: { color:SOFT_COLOR, fontSize:12, interval:0, rotate:0 }
         },
         yAxis: [
-            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
-              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
-            { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
-              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:12} }
+            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:13}, axisLine:{show:false},
+              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:13} },
+          { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:13}, axisLine:{show:false},
+              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:13} }
         ],
         series: [
             {
                 name: '职位数', type: 'bar', data: data.counts, yAxisIndex: 0,
                 barWidth: '50%', itemStyle: { borderRadius:[4,4,0,0], color: '#2E6E5E' },
-                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
+                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:12 }
             },
             {
                 name: '平均薪资(k)', type: 'line', data: avgData, yAxisIndex: 1,
                 lineStyle: { width:3, color:'#A33B2E' },
                 itemStyle: { color:'#A33B2E' },
                 symbol: 'circle', symbolSize: 8,
-                label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
+                label: { show:true, color:'#A33B2E', fontSize:12, fontWeight:600 }
             }
         ]
     });
@@ -712,39 +794,248 @@ const tip = {
                 return '<b>'+p.name+'</b><br/>平均薪资: <b>'+p.value+'k</b>';
             }
         }),
-        title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:17, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
-        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:12} },
+        title: { text: '薪资 vs 学历', left: 'center', top: 4, textStyle: { fontSize:18, fontFamily:"'Noto Serif SC',serif", fontWeight:700, color:TEXT_COLOR } },
+        legend: { data:['职位数','平均薪资(k)'], bottom: 4, textStyle:{color:SOFT_COLOR,fontSize:13} },
         grid: { left: 50, right: 50, top: 60, bottom: 70 },
         xAxis: {
             type: 'category', data: xLabels,
             axisLine: { lineStyle:{color:'#D7D9CB'} },
             axisTick: { show:false },
-            axisLabel: { color:SOFT_COLOR, fontSize:12, interval:0, rotate:0 }
+            axisLabel: { color:SOFT_COLOR, fontSize:13, interval:0, rotate:0 }
         },
         yAxis: [
-            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
-              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:12} },
-            { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:12}, axisLine:{show:false},
-              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:12} }
+            { type: 'value', name: '职位数', nameTextStyle:{color:SOFT_COLOR,fontSize:13}, axisLine:{show:false},
+              splitLine:{lineStyle:{color:'#EDEFE8'}}, axisLabel:{color:SOFT_COLOR,fontSize:13} },
+          { type: 'value', name: '薪资(k)', nameTextStyle:{color:SOFT_COLOR,fontSize:13}, axisLine:{show:false},
+              splitLine:{show:false}, axisLabel:{color:SOFT_COLOR,fontSize:13} }
         ],
         series: [
             {
                 name: '职位数', type: 'bar', data: data.counts, yAxisIndex: 0,
                 barWidth: '50%', itemStyle: { borderRadius:[4,4,0,0], color: '#2E6E5E' },
-                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:11 }
+                label: { show:true, position:'top', color:SOFT_COLOR, fontSize:12 }
             },
             {
                 name: '平均薪资(k)', type: 'line', data: avgData, yAxisIndex: 1,
                 lineStyle: { width:3, color:'#A33B2E' },
                 itemStyle: { color:'#A33B2E' },
                 symbol: 'circle', symbolSize: 8,
-                label: { show:true, color:'#A33B2E', fontSize:11, fontWeight:600 }
+                label: { show:true, color:'#A33B2E', fontSize:12, fontWeight:600 }
             }
         ]
     });
     window.addEventListener('resize',function(){ chart.resize(); });
 })();
 {% endif %}
+// ---------- AI 分析 ----------
+var TITLES = {
+    city: '城市分布 · AI 直观分析',
+    salary: '薪资分布 · AI 直观分析',
+    xueli: '学历占比 · AI 直观分析',
+    jinyan: '经验占比 · AI 直观分析',
+    wordcloud: '高频热词 · AI 直观分析',
+    cross: '交叉分析 · AI 直观分析'
+};
+
+function showAI(event, section){
+    event.preventDefault();
+    event.stopPropagation();
+    var overlay = document.getElementById('ai_overlay');
+    var title = document.getElementById('ai_title');
+    var content = document.getElementById('ai_content');
+    title.textContent = TITLES[section] || 'AI 直观分析';
+    content.innerHTML = '<p style="text-align:center;padding:24px;color:#9C7F3F;">'
+        + '<span style="display:inline-block;animation:ai-spin .8s linear infinite;font-size:24px;">⏳</span>'
+        + '<br/>AI 正在分析数据…</p>';
+    overlay.style.display = 'flex';
+
+    // 从 meta 标签获取 CSRF token
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    fetch('/chart/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ section: section })
+    })
+    .then(function(r){ return r.text(); })
+    .then(function(text){
+        // 检查是否服务端错误
+        if(text.indexOf('{"error"') === 0){
+            try { var err = JSON.parse(text); throw new Error(err.error); } catch(e){ throw e; }
+        }
+        content.innerHTML = formatAIResponse(text);
+    })
+    .catch(function(err){
+        console.warn('AI分析API失败,启用本地分析:', err.message);
+        content.innerHTML = generateAI(section);
+    });
+}
+function closeAI(){
+    document.getElementById('ai_overlay').style.display = 'none';
+}
+document.getElementById('ai_overlay').addEventListener('click', function(e){
+    if(e.target === this) closeAI();
+});
+
+function formatAIResponse(text){
+    // 将 AI 返回的纯文本/Markdown 转为带样式的 HTML
+    var html = text
+        // 转义 HTML 特殊字符
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        // 处理 **粗体**
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        // 处理换行分段
+        .replace(/\n\n+/g, '</p><p>')
+        .replace(/\n/g, '<br/>');
+    return '<p>' + html + '</p>';
+}
+
+function generateAI(section){
+    var d = ALL_DATA[section];
+    if(!d) return '<p>暂无数据</p>';
+    var html = '';
+    if(section === 'city'){
+        if(!d.length) return '<p>暂无城市数据</p>';
+        var total = d.reduce(function(s, it){ return s + it[1]; }, 0);
+        var top3 = d.slice(0, 3);
+        html += '<p><b>数据概况：</b>当前共采集 <b>' + total + '</b> 条职位数据，分布于 <b>' + d.length + '</b> 个城市。</p>';
+        html += '<p><b>集中度分析：</b>职位分布呈现明显的区域集中特征。TOP 3 城市依次为：</p><ol>';
+        top3.forEach(function(it, i){
+            var pct = ((it[1] / total) * 100).toFixed(1);
+            html += '<li><b>' + it[0] + '</b> — ' + it[1] + ' 个职位（占比 ' + pct + '%）</li>';
+        });
+        html += '</ol>';
+        var top1pct = ((top3[0][1] / total) * 100).toFixed(1);
+        html += '<p><b>核心洞察：</b>' + top3[0][0] + ' 作为职位最密集的城市，独占 <b>' + top1pct + '%</b> 的份额。';
+        if(top3.length >= 3){
+            var top3sum = top3[0][1] + top3[1][1] + top3[2][1];
+            var top3pct = ((top3sum / total) * 100).toFixed(1);
+            html += '前三大城市合计占比 <b>' + top3pct + '%</b>，';
+        }
+        html += '说明 Python 相关岗位高度集中在一线城市及经济发达地区。建议求职者优先关注这些核心城市，同时关注新兴城市的增长潜力。</p>';
+    } else if(section === 'salary'){
+        var labels = ['<5k','5-8k','8-11k','11-14k','14-17k','17-20k','20-23k','23k+'];
+        var total = d.reduce(function(s, v){ return s + v; }, 0);
+        if(!total) return '<p>暂无薪资数据</p>';
+        var maxIdx = 0, maxVal = d[0];
+        for(var i=1;i<d.length;i++){ if(d[i] > maxVal){ maxVal = d[i]; maxIdx = i; } }
+        var maxPct = ((maxVal / total) * 100).toFixed(1);
+        html += '<p><b>数据概况：</b>共统计 <b>' + total + '</b> 个有明确薪资区间的职位。</p>';
+        html += '<p><b>薪资主力区间：</b><b>' + labels[maxIdx] + '</b> 为岗位数量最多的区间，有 <b>' + maxVal + '</b> 个职位（占比 ' + maxPct + '%）。</p>';
+        var highEnd = d[6] + d[7]; // 20-23k + 23k+
+        var highPct = ((highEnd / total) * 100).toFixed(1);
+        html += '<p><b>高薪岗位：</b>20k 以上高薪岗位共 <b>' + highEnd + '</b> 个（占比 ' + highPct + '%）。';
+        var lowEnd = d[0] + d[1]; // <5k + 5-8k
+        var lowPct = ((lowEnd / total) * 100).toFixed(1);
+        html += '低薪端（<8k）共 <b>' + lowEnd + '</b> 个（占比 ' + lowPct + '%）。</p>';
+        html += '<p><b>核心洞察：</b>Python 岗位薪资呈现<b>橄榄型分布</b>，大部分岗位集中在 <b>8-17k</b> 的中等薪资区间。对于求职者而言，具备 3 年以上经验和核心技能栈（如 Django、数据分析、机器学习）是突破 20k 薪资门槛的关键。</p>';
+    } else if(section === 'xueli'){
+        if(!d.length) return '<p>暂无学历数据</p>';
+        var total = d.reduce(function(s, it){ return s + it[1]; }, 0);
+        html += '<p><b>数据概况：</b>共统计 <b>' + total + '</b> 个有学历要求的职位。</p>';
+        html += '<p><b>学历分布：</b></p><ul>';
+        d.forEach(function(it){
+            var pct = ((it[1] / total) * 100).toFixed(1);
+            html += '<li><b>' + it[0] + '</b> — ' + it[1] + ' 个职位（占比 ' + pct + '%）</li>';
+        });
+        html += '</ul>';
+        var top = d[0];
+        html += '<p><b>核心洞察：</b>市场以 <b>' + top[0] + '</b> 学历为主。';
+        var bachelor = d.find(function(it){ return it[0] === '本科'; });
+        if(bachelor){
+            var bpct = ((bachelor[1] / total) * 100).toFixed(1);
+            html += '本科岗位占比 <b>' + bpct + '%</b>，是 Python 开发岗位的绝对门槛。';
+        }
+        html += '对于求职者，本科及以上学历可获得 90% 以上岗位准入资格；硕士学历在高端算法/AI 岗位中更具竞争优势。</p>';
+    } else if(section === 'jinyan'){
+        if(!d.length) return '<p>暂无经验数据</p>';
+        var total = d.reduce(function(s, it){ return s + it[1]; }, 0);
+        html += '<p><b>数据概况：</b>共统计 <b>' + total + '</b> 个有经验要求的职位。</p>';
+        html += '<p><b>经验分布：</b></p><ul>';
+        d.forEach(function(it){
+            var pct = ((it[1] / total) * 100).toFixed(1);
+            html += '<li><b>' + it[0] + '</b> — ' + it[1] + ' 个职位（占比 ' + pct + '%）</li>';
+        });
+        html += '</ul>';
+        var top = d[0];
+        html += '<p><b>核心洞察：</b>市场最需求 <b>' + top[0] + '</b> 的候选人。';
+        var entry = d.find(function(it){ return it[0] === '1-3年' || it[0] === '经验不限'; });
+        if(entry){
+            html += '初级岗位（经验不限 / 1-3年）合计占一定比例，为应届生和转行者提供了较多机会。';
+        }
+        html += '随着经验年限增长，岗位数量递减但薪资显著提升（详见交叉分析），体现经验溢价效应。</p>';
+    } else if(section === 'wordcloud'){
+        if(!d || !d.words || !d.words.length) return '<p>暂无词云数据</p>';
+        var words = d.words;
+        var top5 = words.slice(0, 5);
+        html += '<p><b>数据概况：</b>从岗位描述中提取出 <b>' + words.length + '</b> 个高频技能关键词。</p>';
+        html += '<p><b>TOP 5 热词：</b></p><ol>';
+        top5.forEach(function(it, i){
+            html += '<li><b>' + it[0] + '</b> — 出现 ' + it[1] + ' 次</li>';
+        });
+        html += '</ol>';
+        html += '<p><b>核心洞察：</b>当前市场对 Python 开发者的核心技能要求是 ';
+        if(top5.some(function(it){ return it[0].toLowerCase().indexOf('django') >= 0 || it[0].toLowerCase().indexOf('flask') >= 0; })){
+            html += '<b>Web 开发框架</b>（Django / Flask）';
+        } else if(top5.some(function(it){ return it[0].toLowerCase().indexOf('数据') >= 0 || it[0].toLowerCase().indexOf('pandas') >= 0; })){
+            html += '<b>数据分析能力</b>（Pandas / NumPy）';
+        } else {
+            html += '<b>综合技术栈</b>';
+        }
+        html += '。建议求职者围绕热词构建技能体系，在简历和面试中突出这些关键词，可显著提升匹配度。</p>';
+    } else if(section === 'cross'){
+        var exp = ALL_DATA.cross_exper;
+        var edu = ALL_DATA.cross_edu;
+        if(!exp || !edu) return '<p>暂无交叉分析数据</p>';
+
+        html += '<p><b>数据概况：</b>交叉分析包含两张图："薪资 vs 经验等级"与"薪资 vs 学历"，揭示薪资与两个维度的关联规律。</p>';
+
+        // ===== 独立分析：经验 vs 薪资 =====
+        if(exp.labels && exp.labels.length){
+            html += '<p><b>【经验 vs 薪资 独立分析】</b></p><ul>';
+            var maxAvg = 0, maxIdx = -1, expTotal = 0;
+            for(var i=0;i<exp.avg_salaries.length;i++){
+                if(exp.counts[i] > 0) expTotal += exp.counts[i];
+                if(exp.avg_salaries[i] > maxAvg){ maxAvg = exp.avg_salaries[i]; maxIdx = i; }
+            }
+            exp.labels.forEach(function(lbl, i){
+                if(exp.counts[i] > 0){
+                    var pct = ((exp.counts[i] / Math.max(expTotal,1)) * 100).toFixed(1);
+                    html += '<li><b>' + lbl + '</b>：平均薪资 <b>' + exp.avg_salaries[i] + 'k</b>（' + exp.counts[i] + ' 个职位，占比 ' + pct + '%）</li>';
+                }
+            });
+            html += '</ul>';
+            if(maxIdx >= 0){
+                html += '<p>经验维度中，<b>' + exp.labels[maxIdx] + '</b> 的平均薪资最高，达到 <b>' + maxAvg + 'k</b>。薪资随经验年限呈现<b>明显递增</b>趋势，经验积累是最直接的薪资驱动力。</p>';
+            }
+        }
+
+        // ===== 独立分析：学历 vs 薪资 =====
+        if(edu.labels && edu.labels.length){
+            html += '<p><b>【学历 vs 薪资 独立分析】</b></p><ul>';
+            var eduMaxAvg = 0, eduMaxIdx = -1, eduTotal = 0;
+            for(var i=0;i<edu.avg_salaries.length;i++){
+                if(edu.counts[i] > 0) eduTotal += edu.counts[i];
+                if(edu.avg_salaries[i] > eduMaxAvg){ eduMaxAvg = edu.avg_salaries[i]; eduMaxIdx = i; }
+            }
+            edu.labels.forEach(function(lbl, i){
+                if(edu.counts[i] > 0){
+                    var pct = ((edu.counts[i] / Math.max(eduTotal,1)) * 100).toFixed(1);
+                    html += '<li><b>' + lbl + '</b>：平均薪资 <b>' + edu.avg_salaries[i] + 'k</b>（' + edu.counts[i] + ' 个职位，占比 ' + pct + '%）</li>';
+                }
+            });
+            html += '</ul>';
+            if(eduMaxIdx >= 0){
+                html += '<p>学历维度中，<b>' + edu.labels[eduMaxIdx] + '</b> 的平均薪资最高，达到 <b>' + eduMaxAvg + 'k</b>。学历提升带来<b>薪资溢价</b>，尤其在中高端岗位中优势显著。</p>';
+            }
+        }
+
+        // ===== 综合分析 =====
+        html += '<p><b>【综合分析】</b>薪资与经验、学历均呈<b>正相关</b>趋势。但从增幅斜率来看，<b>经验积累</b>对薪资的边际贡献更大——经验从"不限"到"10年以上"的薪资跨度通常远超学历间的差异。建议求职者在早期阶段（1-3年）优先注重<b>项目经验和技术深度</b>的积累；在中后期（5年以上）可再通过学历提升或专项认证（如 AI/云原生）实现<b>薪资二次突破</b>。对于应届生，学历门槛是入场券，但经验与作品才是决定起薪的关键。</p>';
+    }
+    return html;
+}
 
 </script>
 

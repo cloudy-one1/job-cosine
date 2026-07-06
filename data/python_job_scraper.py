@@ -1037,6 +1037,11 @@ def scrape_jobs(keyword, cities, pages_per_city=3, sort_type='0', progress_callb
                     job_id = str(j.get('jobId', '') or j.get('jobid', '') or '')
                     city_pinyin = CITY_PINYIN.get(city, city.lower())
                     job_url = f'https://jobs.51job.com/{city_pinyin}/{job_id}.html' if job_id and city_pinyin else ''
+
+                    # 单独提取关键字标签(jobTags),用于后续高频热词统计
+                    # 这些标签来自51job,比jieba从描述中分词更精准(如Java/MyBatis/Spring)
+                    tags = j.get('jobTags') or []
+                    keywords = ' '.join(str(t).strip() for t in tags if str(t).strip()) if tags else ''
                     
                     all_jobs.append({
                         'post': title,
@@ -1048,6 +1053,7 @@ def scrape_jobs(keyword, cities, pages_per_city=3, sort_type='0', progress_callb
                         'dateT': (j.get('issueDateString') or '').strip(),
                         'scrape_date': now,
                         'content': content,
+                        'keywords': keywords,
                         'job_url': job_url,
                     })
                     added += 1
@@ -1091,9 +1097,17 @@ if __name__ == '__main__':
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 post TEXT, company TEXT, address TEXT,
                 salary_min REAL, salary_max REAL,
-                dateT TEXT, edu TEXT, exper TEXT, content TEXT
+                dateT TEXT, edu TEXT, exper TEXT, content TEXT,
+                keywords TEXT, job_url TEXT
             )
         """)
+        # 兼容旧表: 确保 keywords 和 job_url 字段存在
+        cursor.execute("PRAGMA table_info(data)")
+        existing_cols = [r[1] for r in cursor.fetchall()]
+        if 'keywords' not in existing_cols:
+            cursor.execute("ALTER TABLE data ADD COLUMN keywords TEXT")
+        if 'job_url' not in existing_cols:
+            cursor.execute("ALTER TABLE data ADD COLUMN job_url TEXT")
         # 跟教材4.4.6节 data_clr() 的设计思路一致: 每次新采集前清空旧数据,
         # 也跟网页 /collect 路由的实际行为保持一致,避免同一份数据
         # 出现"命令行跑出来一套、网页跑出来另一套"的不一致情况
@@ -1105,10 +1119,10 @@ if __name__ == '__main__':
             try:
                 cursor.execute(
                     "insert into data (post,company,address,salary_min,salary_max,"
-                    "dateT,edu,exper,content,job_url) values(?,?,?,?,?,?,?,?,?,?)",
+                    "dateT,edu,exper,content,keywords,job_url) values(?,?,?,?,?,?,?,?,?,?,?)",
                     (j['post'], j['company'], j['address'], smin, smax,
                      j['dateT'], j['edu'], j['exper'], j.get('content', ''),
-                     j.get('job_url', ''))
+                     j.get('keywords', ''), j.get('job_url', ''))
                 )
                 success += 1
             except Exception as e:

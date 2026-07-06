@@ -99,7 +99,7 @@ PER_PAGE = 12
 
 # --- 数据库迁移 ----------------------------------------------------------------
 def init_db():
-    """初始化数据库，确保包含所有必要字段（含新增的 job_url）"""
+    """初始化数据库，确保包含所有必要字段（含新增的 keywords）"""
     try:
         db = sqlite3.connect(config.DB_PATH)
         cursor = db.cursor()
@@ -114,15 +114,17 @@ def init_db():
                     post TEXT, company TEXT, address TEXT,
                     salary_min REAL, salary_max REAL,
                     dateT TEXT, edu TEXT, exper TEXT, content TEXT,
-                    job_url TEXT
+                    keywords TEXT, job_url TEXT
                 )
             """)
         else:
-            # 表存在，检查是否有 job_url 字段
+            # 表存在，检查是否有新字段
             cursor.execute("PRAGMA table_info(data)")
             columns = [row[1] for row in cursor.fetchall()]
             if 'job_url' not in columns:
                 cursor.execute("ALTER TABLE data ADD COLUMN job_url TEXT")
+            if 'keywords' not in columns:
+                cursor.execute("ALTER TABLE data ADD COLUMN keywords TEXT")
                 
         db.commit()
         db.close()
@@ -349,6 +351,105 @@ def chart(section='city'):
                            cross_edu=cross_edu, wc_data=wc_data)
 
 
+@app.route('/chart/analyze', methods=['POST'])
+def chart_analyze():
+    """DeepSeek 数据驱动图表分析接口。
+    接收前端 AJAX 请求,将当前数据传给 DeepSeek 实时生成针对性的直观分析。
+    每次采集新数据后,分析结论会相应变化,而非套用固定模板。"""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    section = data.get('section', 'city')
+    valid_sections = {'city', 'salary', 'xueli', 'jinyan', 'wordcloud', 'cross'}
+    if section not in valid_sections:
+        return _json.dumps({'error': '无效的分析类型'}), 400
+
+    # 获取所有数据(与 /chart 路由一致)
+    import analysis.xinzi as xinzi
+    import analysis.xueli as xueli
+    import analysis.jinyan as jinyan
+    import analysis.region as region
+    import analysis.cross as cross
+    from analysis.wordcloud_gen import generate_wordcloud_data
+
+    try:
+        xz_val = xinzi.xinzi()
+        xl_val = xueli.xuelifun()
+        jy_val = jinyan.jinyanfun()
+        city_val = region.regionfun()
+        cross_exper = cross.salary_vs_exper()
+        cross_edu = cross.salary_vs_edu()
+        wc_val = generate_wordcloud_data(top_n=60)
+    except Exception as e:
+        return _json.dumps({'error': f'数据查询失败: {str(e)}'}), 500
+
+    # 拼装面向 DeepSeek 的数据描述
+    labels_xz = ['<5k', '5-8k', '8-11k', '11-14k', '14-17k', '17-20k', '20-23k', '23k+']
+    total_jobs = sum(xz_val)
+    salary_desc = '、'.join([f'{labels_xz[i]} {xz_val[i]}个' for i in range(len(xz_val))])
+    city_desc_lines = [f'{c[0]} {c[1]}个' for c in city_val[:10]]
+    xl_desc = '、'.join([f'{l[0]} {l[1]}个' for l in xl_val])
+    jy_desc = '、'.join([f'{j[0]} {j[1]}个' for j in jy_val])
+    wc_top_desc = '、'.join([f'{w[0]}({w[1]}次)' for w in (wc_val.get('words', []) or [])[:10]])
+
+    exper_desc = ''
+    if cross_exper and cross_exper.get('labels'):
+        exper_desc = '、'.join([
+            f'{cross_exper["labels"][i]} 平均{cross_exper["avg_salaries"][i]}k({cross_exper["counts"][i]}个)'
+            for i in range(len(cross_exper['labels']))
+        ])
+    edu_desc = ''
+    if cross_edu and cross_edu.get('labels'):
+        edu_desc = '、'.join([
+            f'{cross_edu["labels"][i]} 平均{cross_edu["avg_salaries"][i]}k({cross_edu["counts"][i]}个)'
+            for i in range(len(cross_edu['labels']))
+        ])
+
+    section_map = {
+        'city': (f'当前共有{total_jobs}个职位,分布在前10的城市为:{city_desc_lines}',
+                 '请你只针对城市分布给出直观分析,指出岗位集中趋势、核心城市及求职建议。用中文,150-300字,直接说结论,不要问候语。'),
+        'salary': (f'薪资分布(共{total_jobs}个有薪资的职位): {salary_desc}',
+                   '请你只针对薪资分布给出直观分析,指出主力薪资区间、高薪与低薪占比、以及薪资结构特征。用中文,150-300字,直接说结论,不要问候语。'),
+        'xueli': (f'学历分布: {xl_desc}',
+                  '请你只针对学历要求分布给出直观分析,指出市场主流的学历门槛、各学历占比态势。用中文,150-300字,直接说结论,不要问候语。'),
+        'jinyan': (f'经验要求分布: {jy_desc}',
+                   '请你只针对经验要求分布给出直观分析,指出市场最需求的年资段。用中文,150-300字,直接说结论,不要问候语。'),
+        'wordcloud': (f'岗位描述高频技能词TOP10: {wc_top_desc}',
+                      '请你只针对这些高频技能词给出直观分析,指出当前市场对Python开发者的核心技能要求方向。用中文,150-300字,直接说结论,不要问候语。'),
+        'cross': (f'交叉分析:\n1) 经验 vs 平均薪资: {exper_desc}\n2) 学历 vs 平均薪资: {edu_desc}',
+                  '请分三段输出,每段加粗标题:\n'
+                  '1) 【经验 vs 薪资 独立分析】只针对"薪资 vs 经验等级"图进行分析,指出各经验段的平均薪资趋势、职位数量分布特征、哪个经验段薪资溢价最高。\n'
+                  '2) 【学历 vs 薪资 独立分析】只针对"薪资 vs 学历"图进行分析,指出各学历层次的平均薪资差异、学历溢价效应。\n'
+                  '3) 【综合分析】对比两段分析,指出经验与学历对薪资的影响哪个更大,并给出求职者针对性的职业规划建议。\n'
+                  '用中文,每段150-200字,直接说结论,不要问候语。'),
+    }
+
+    data_desc, instruction = section_map[section]
+
+    prompt = f"""你是招聘市场数据分析助手。以下是当前招聘数据库的真实数据,请据此给出直观、有见地的分析。
+
+【数据】
+{data_desc}
+
+【要求】
+{instruction}
+
+重要:只基于提供的具体数字说话,不要编造数据或引用外部知识。"""
+    api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
+    if not api_key:
+        return _json.dumps({'error': 'DEEPSEEK_API_KEY 未配置,无法生成分析'}), 503
+
+    try:
+        from agent.agent_core import call_deepseek
+        messages = [
+            {'role': 'system', 'content': '你是一个精准、客观的招聘数据分析助手。只基于给定的数据事实说话,不编造、不泛化。输出纯文本中文分析。'},
+            {'role': 'user', 'content': prompt},
+        ]
+        analysis = call_deepseek(messages, api_key, model='deepseek-chat', max_retries=2)
+        return analysis
+    except Exception as e:
+        return _json.dumps({'error': f'AI 分析生成失败: {str(e)}'}), 500
+
+
 def _safe_model_metrics(mc):
     """当模型未训练时,返回安全的默认指标值,避免模板渲染崩溃。
     模板里使用 model_r2 / model_old_r2 / model_mae / baseline_mae /
@@ -528,10 +629,10 @@ def collect():
         try:
             cursor.execute(
                 "insert into data (post,company,address,salary_min,salary_max,"
-                "dateT,edu,exper,content,job_url) values(?,?,?,?,?,?,?,?,?,?)",
+                "dateT,edu,exper,content,keywords,job_url) values(?,?,?,?,?,?,?,?,?,?,?)",
                 (j['post'], j['company'], j['address'], smin, smax,
                  j['dateT'], j['edu'], j['exper'], j.get('content', ''),
-                 j.get('job_url', ''))
+                 j.get('keywords', ''), j.get('job_url', ''))
             )
             success += 1
         except Exception:

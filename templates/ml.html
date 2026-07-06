@@ -13,7 +13,7 @@
 </style>
 
 <p class="eyebrow">案卷 NO. 04 · 机器学习分析</p>
-<h2 style="margin-bottom:24px; font-size:28px;">数据驱动的岗位聚类与薪资预测</h2>
+<h2 style="margin-bottom:24px; font-size:30px;">数据驱动的岗位聚类与薪资预测</h2>
 
 {% if not clustering %}
 <div class="card" data-no="提示">
@@ -24,30 +24,30 @@
 <!-- 统计卡片 -->
 <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:24px;">
     <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="样本">
-        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ total_jobs }}</div>
-        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">参与建模岗位数</div>
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">{{ total_jobs }}</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">参与建模岗位数</div>
     </div>
     <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="聚类数">
-        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ clustering.k }}</div>
-        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">自动聚类数</div>
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">{{ clustering.k }}</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">自动聚类数</div>
     </div>
     <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="最佳模型">
-        <div style="font-size:38px; font-weight:800; color:var(--stamp);">
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">
             {% if model_rf_r2 >= model_r2 and model_rf_mae > 0 %}RF{% elif model_mae > 0 %}LR{% else %}-{% endif %}
         </div>
-        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">最佳预测模型</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">最佳预测模型</div>
     </div>
     <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="MAE">
-        <div style="font-size:38px; font-weight:800; color:var(--stamp);">
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">
             {% if model_rf_r2 >= model_r2 and model_rf_mae > 0 %}{{ "%.1f"|format(model_rf_mae) }}{% elif model_mae > 0 %}{{ "%.1f"|format(model_mae) }}{% else %}-{% endif %}
         </div>
-        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">最优模型 MAE(K)</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">最优模型 MAE(K)</div>
     </div>
 </div>
 
 <!-- 各方向岗位规模与均薪 -->
 <div class="card" data-no="方向规模" style="margin-bottom:20px;">
-    <h3 style="margin-top:0; margin-bottom:12px; font-size:18px;">各方向岗位规模与平均薪资</h3>
+    <h3 style="margin-top:0; margin-bottom:12px; font-size:20px;">各方向岗位规模与平均薪资</h3>
     <div id="cluster_overview" style="width:100%; height:{{ [560, clustering.clusters|length * 78 + 120]|max }}px;"></div>
 </div>
 
@@ -66,11 +66,11 @@
     {% for c in clustering.clusters %}
     <div class="card dir-card" style="flex:1 1 300px; min-width:280px; padding:20px 22px 18px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
-            <h4 style="margin:0; font-size:16px; color:var(--ink);">{{ c.auto_label }}</h4>
-            <span class="mono" style="font-size:13px; color:var(--stamp); font-weight:700;">{{ c.count }} 岗</span>
+            <h4 style="margin:0; font-size:18px; color:var(--ink);">{{ c.auto_label }}</h4>
+            <span class="mono" style="font-size:14px; color:var(--stamp); font-weight:700;">{{ c.count }} 岗</span>
         </div>
         <div style="margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft); margin-bottom:4px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">
                 <span>均薪 {{ "%.1f"|format(c.avg_salary) }}K</span>
                 <span>{{ c.min_salary }}K - {{ c.max_salary }}K</span>
             </div>
@@ -80,7 +80,7 @@
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:6px;">
             {% for kw in c.top_keywords[:8] %}
-            <span style="font-size:12px; padding:3px 8px; background:#F7F6F2; border-radius:12px; color:var(--ink-soft);">{{ kw }}</span>
+            <span style="font-size:13px; padding:3px 8px; background:#F7F6F2; border-radius:20px; color:var(--ink-soft);">{{ kw }}</span>
             {% endfor %}
         </div>
     </div>
@@ -96,19 +96,19 @@
     <form action="/predict" method="post" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="flex:1; min-width:160px;">
-            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">城市</label>
+            <label style="display:block; font-size:15px; color:var(--ink-soft); margin-bottom:8px;">城市</label>
             <input type="text" name="city" class="form-control" placeholder="如：北京" value="{{ request.form.city or '' }}" required>
         </div>
         <div style="flex:1; min-width:160px;">
-            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">职位类别</label>
+            <label style="display:block; font-size:15px; color:var(--ink-soft); margin-bottom:8px;">职位类别</label>
             <input type="text" name="category" class="form-control" placeholder="如：后端开发" value="{{ request.form.category or '' }}" required>
         </div>
         <div style="flex:1; min-width:140px;">
-            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">学历</label>
+            <label style="display:block; font-size:15px; color:var(--ink-soft); margin-bottom:8px;">学历</label>
             <input type="text" name="edu" class="form-control" placeholder="默认：不限" value="{{ request.form.edu or '' }}">
         </div>
         <div style="flex:1; min-width:140px;">
-            <label style="display:block; font-size:14px; color:var(--ink-soft); margin-bottom:8px;">经验</label>
+            <label style="display:block; font-size:15px; color:var(--ink-soft); margin-bottom:8px;">经验</label>
             <input type="text" name="exper" class="form-control" placeholder="默认：经验不限" value="{{ request.form.exper or '' }}">
         </div>
         <button type="submit" class="btn btn-info" style="padding:12px 28px;">开始预测</button>
@@ -119,21 +119,21 @@
     {% endif %}
 
     {% if predict_result %}
-    <div style="background:#F7F6F2; border-left:4px solid var(--stamp); padding:18px 22px; border-radius:6px;">
-        <div style="font-size:15px; margin-bottom:8px;">
+    <div style="background:#F7F6F2; border-left:4px solid var(--stamp); padding:18px 22px; border-radius:12px;">
+        <div style="font-size:16px; margin-bottom:8px;">
             <strong>{{ predict_result.city }}</strong> · <strong>{{ predict_result.category }}</strong>
             （{{ predict_result.edu }} / {{ predict_result.exper }}）
         </div>
-        <div style="font-size:32px; font-weight:800; color:var(--stamp); margin-bottom:6px;">
-            {{ predict_result.pred }} <span style="font-size:16px; color:var(--ink-soft); font-weight:500;">K/月</span>
+        <div style="font-size:36px; font-weight:800; color:var(--stamp); margin-bottom:6px;">
+            {{ predict_result.pred }} <span style="font-size:18px; color:var(--ink-soft); font-weight:500;">K/月</span>
         </div>
         {% if predict_cluster_ref %}
-        <div style="font-size:13px; color:var(--ink-soft); margin-bottom:8px;">
+        <div style="font-size:14px; color:var(--ink-soft); margin-bottom:8px;">
             同方向「{{ predict_cluster_ref.label }}」市场均薪约 {{ predict_cluster_ref.avg_salary }}K（{{ predict_cluster_ref.count }} 个岗位）
         </div>
         {% endif %}
         {% if predict_result.warnings %}
-        <ul style="margin:0; padding-left:18px; color:var(--ink-soft); font-size:13px;">
+        <ul style="margin:0; padding-left:18px; color:var(--ink-soft); font-size:14px;">
             {% for w in predict_result.warnings %}
             <li>{{ w }}</li>
             {% endfor %}
@@ -167,18 +167,18 @@
         grid: { left: 156, right: 80, top: 20, bottom: 52 },
         legend: {
             data: ['岗位数', '均薪(K)'], bottom: 0,
-            textStyle: { color: SOFT, fontSize: 14 }
+            textStyle: { color: SOFT, fontSize: 15 }
         },
         xAxis: { type: 'value', axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
-                 axisLabel: { color: SOFT, fontSize: 13 } },
+                 axisLabel: { color: SOFT, fontSize: 14 } },
         yAxis: { type: 'category', data: labels.reverse(),
                  axisLine: {lineStyle:{color:'#D8D6CF'}}, axisTick:{show:false},
-                 axisLabel: { color: TEXT, fontSize: 14, fontWeight: 500 } },
+                 axisLabel: { color: TEXT, fontSize: 15, fontWeight: 500 } },
         series: [
             {
                 name: '岗位数', type: 'bar', data: counts.reverse(),
                 barWidth: '36%', itemStyle: { borderRadius: [0,3,3,0], color: COLORS[0] },
-                label: { show: true, position: 'right', color: SOFT, fontSize: 13 }
+                label: { show: true, position: 'right', color: SOFT, fontSize: 14 }
             },
             {
                 name: '均薪(K)', type: 'line', data: avgs.reverse(),
@@ -198,14 +198,14 @@
     var maxR2 = Math.max.apply(null, r2Data.map(function(d){ return d.value; }));
     echarts.init(document.getElementById('model_r2_chart')).setOption({
         title: { text: 'R² 对比 (越高越好)', left:0, top:0,
-                 textStyle: { color: TEXT, fontSize: 16, fontWeight: 700 } },
+                 textStyle: { color: TEXT, fontSize: 18, fontWeight: 700 } },
         tooltip: { trigger: 'axis' },
         grid: { left: 16, right: 16, top: 48, bottom: 80 },
         xAxis: { type: 'category', data: r2Data.map(function(d){return d.name;}),
-                 axisLabel: { color: SOFT, fontSize: 14, rotate: 12, overflow:'truncate', width:110 } },
+                 axisLabel: { color: SOFT, fontSize: 15, rotate: 12, overflow:'truncate', width:110 } },
         yAxis: { type: 'value', max: Math.min(maxR2 + 0.15, 1),
                  axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
-                 axisLabel: { color: SOFT, fontSize: 13 } },
+                 axisLabel: { color: SOFT, fontSize: 14 } },
         series: [{
             type: 'bar', data: r2Data.map(function(d,i){ return { value: d.value, itemStyle: { color: COLORS[i] } }; }),
             barWidth: 48, itemStyle: { borderRadius: [3,3,0,0] },
@@ -222,7 +222,7 @@
     var maxMAE = Math.max.apply(null, maeData.map(function(d){ return d.value; }));
     echarts.init(document.getElementById('model_mae_chart')).setOption({
         title: { text: 'MAE 对比 (越低越好)', left:0, top:0,
-                 textStyle: { color: TEXT, fontSize: 16, fontWeight: 700 } },
+                 textStyle: { color: TEXT, fontSize: 18, fontWeight: 700 } },
         tooltip: { trigger: 'axis' },
         grid: { left: 16, right: 16, top: 48, bottom: 80 },
         xAxis: { type: 'category', data: maeData.map(function(d){return d.name;}),
@@ -233,7 +233,7 @@
         series: [{
             type: 'bar', data: maeData.map(function(d,i){ return { value: d.value, itemStyle: { color: COLORS[i] } }; }),
             barWidth: 48, itemStyle: { borderRadius: [3,3,0,0] },
-            label: { show: true, position: 'top', color: TEXT, fontSize: 14, fontWeight: 600, formatter: '{c}' }
+            label: { show: true, position: 'top', color: TEXT, fontSize: 15, fontWeight: 600, formatter: '{c}' }
         }]
     });
 })();

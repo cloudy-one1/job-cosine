@@ -4,8 +4,8 @@
 <div class="fade-up" style="text-align:center; padding:40px 0 26px;">
     <div class="stamp" style="margin:0 auto 22px;">COSINE</div>
     <p class="eyebrow">Recruitment Intelligence Ledger · 案卷 2026-PY</p>
-    <h1 style="font-size:38px;">招聘信息实时数据分析系统</h1>
-    <p style="color:var(--ink-soft); font-size:15px; max-width:660px; margin:8px auto 0;">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
+    <h1 style="font-size:42px;">招聘信息实时数据分析系统</h1>
+    <p style="color:var(--ink-soft); font-size:16px; max-width:660px; margin:8px auto 0;">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
 </div>
 
 <div class="card fade-up" data-no="NO. 01 · 查询 / 采集入口" style="max-width:960px; margin:30px auto;">
@@ -20,21 +20,21 @@
         <div class="form-group">
             <label>选择城市(可选,不选则全国范围搜索)</label>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:14px 16px;
-                        background:#fafafa; border:1px solid #ddd; border-radius:8px;">
+                        background:#fafafa; border:1px solid #ddd; border-radius:12px;">
                 <select id="provinceSelect"
-                    style="font-size:15px; padding:9px 14px; border:1px solid #ccc; border-radius:6px;
+                    style="font-size:16px; padding:10px 14px; border:1px solid #ccc; border-radius:12px;
                            background:#fff; flex:1; min-width:140px; cursor:pointer;">
                     <option value="">← 选择省份</option>
                 </select>
-                <span style="color:#aaa; font-size:18px; user-select:none;">›</span>
+                <span style="color:#aaa; font-size:20px; user-select:none;">›</span>
                 <select id="citySelect" disabled
-                    style="font-size:15px; padding:9px 14px; border:1px solid #ccc; border-radius:6px;
+                    style="font-size:16px; padding:10px 14px; border:1px solid #ccc; border-radius:12px;
                            background:#fff; flex:1; min-width:160px; cursor:pointer;">
                     <option value="">先选省份 →</option>
                 </select>
                 <button type="button" id="addCityBtn" disabled
-                    style="font-size:15px; font-weight:600; padding:9px 24px; border:none;
-                           background:var(--accent,#4a7c59); color:#fff; border-radius:6px; cursor:pointer;
+                    style="font-size:16px; font-weight:600; padding:10px 24px; border:none;
+                           background:var(--accent,#4a7c59); color:#fff; border-radius:24px; cursor:pointer;
                            white-space:nowrap; transition:opacity .2s;"
                     onmouseover="this.disabled||(this.style.opacity='0.85')"
                     onmouseout="this.style.opacity='1'">＋ 添加城市</button>
@@ -43,7 +43,7 @@
             <!-- 已选城市标签区 -->
             <div id="selectedCitiesWrap"
                  style="margin-top:10px; display:none;">
-                <div style="font-size:14px; color:#666; margin-bottom:8px;">已选城市：</div>
+                <div style="font-size:15px; color:#666; margin-bottom:8px;">已选城市：</div>
                 <div id="selectedCities"
                      style="display:flex; flex-wrap:wrap; gap:8px;"></div>
             </div>
@@ -53,14 +53,14 @@
         <div style="display:flex; gap:18px; flex-wrap:wrap;">
             <div class="form-group" style="flex:1; min-width:180px;">
                 <label>排序方式(仅"立即实时采集"生效)</label>
-                <select class="form-control" name="sort_type" style="font-size:15px;">
+                <select class="form-control" name="sort_type" style="font-size:16px;">
                     <option value="0">按相关性排序</option>
                     <option value="1">最新发布</option>
                 </select>
             </div>
             <div class="form-group" style="flex:1; min-width:180px;">
                 <label>实时采集页数(仅"立即实时采集"生效,1~5)</label>
-                <input type="number" class="form-control" name="pages" value="2" min="1" max="5" style="font-size:15px;">
+                <input type="number" class="form-control" name="pages" value="2" min="1" max="5" style="font-size:16px;">
             </div>
         </div>
         {% if collect_token_required %}
@@ -71,9 +71,9 @@
         {% endif %}
         <div style="display:flex; gap:12px; margin-top:4px;">
             <button type="submit" formaction="/list" formmethod="get"
-                    class="btn btn-default" style="flex:1; padding:12px; font-size:15px;">查询已有数据</button>
+                    class="btn btn-default" style="flex:1; padding:13px; font-size:16px;">查询已有数据</button>
             <button type="submit" formaction="/collect" formmethod="post"
-                    class="btn btn-info" style="flex:1; padding:12px; font-size:15px;">立即实时采集</button>
+                    class="btn btn-info" style="flex:1; padding:13px; font-size:16px;">立即实时采集</button>
         </div>
         <p style="color:var(--ink-soft); font-size:14px; margin-top:12px; margin-bottom:0; line-height:1.5;">
             查询已有数据：展示数据库现有结果；实时采集：连接 51job 获取新数据（会清空旧数据）。
@@ -107,7 +107,7 @@ provs.forEach(prov => {
     const opt = document.createElement('option');
     opt.value = prov;
     opt.textContent = prov;
-    opt.style.fontSize = '15px';
+    opt.style.fontSize = '16px';
     provSel.appendChild(opt);
 });
 

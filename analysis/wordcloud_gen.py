@@ -348,10 +348,12 @@ def ensure_china_mask(mask_path=None):
 
 def generate_wordcloud_data(top_n=60):
     """
-    从数据库职位标题（post）中提取关键词，统计词频。
+    从数据库职位标题（post）和关键字标签（keywords）中提取关键词，统计词频。
 
-    注意：只从 post（标题）中提取，避免 content（描述）中
-    大量福利、公司介绍、招聘用语造成的噪音。
+    - post：职位标题，用 jieba 分词提取
+    - keywords：来自 51job 的职位标签(jobTags)，直接按空格拆分，
+      不需要 jieba 分词，且每个标签有权重加成（1.5倍），因为
+      这些是平台官方标注的技能，比普通描述更精准。
 
     返回:
         dict: {
@@ -363,7 +365,7 @@ def generate_wordcloud_data(top_n=60):
     try:
         db = _connect_db()
         cursor = db.cursor()
-        cursor.execute("SELECT post FROM data")
+        cursor.execute("SELECT post, keywords FROM data")
         rows = cursor.fetchall()
         db.close()
     except Exception as e:
@@ -373,7 +375,7 @@ def generate_wordcloud_data(top_n=60):
     if not rows:
         return {'success': True, 'total_jobs': 0, 'words': []}
 
-    # 只拼接职位标题
+    # 拼接职位标题
     all_text = []
     for r in rows:
         post = (r[0] or '').strip()
@@ -381,10 +383,10 @@ def generate_wordcloud_data(top_n=60):
             all_text.append(post)
     full_text = ' '.join(all_text)
 
-    # jieba 分词
+    # jieba 分词 (post)
     words = jieba.lcut(full_text)
 
-    # 过滤 + 归一化
+    # 过滤 + 归一化 + 计数
     counter = Counter()
     for w in words:
         w = w.strip().lower()
@@ -404,12 +406,29 @@ def generate_wordcloud_data(top_n=60):
         w = TERM_NORMALIZE.get(w, w)
         counter[w] += 1
 
+    # 补充 keywords（来自 51job jobTags，直接拆分，更高权重）
+    for r in rows:
+        kw_str = (r[1] or '').strip()
+        if not kw_str:
+            continue
+        for w in kw_str.split():
+            w = w.strip().lower()
+            if len(w) < 2 or w.isdigit():
+                continue
+            # keywords 中的词已较干净，跳过空泛通用词即可
+            if w in STOP_WORDS and w not in WHITELIST:
+                continue
+            w = TERM_NORMALIZE.get(w, w)
+            # 权重加成：平台标签比普通标题词更精准，记 2 次
+            counter[w] += 2
+
     top_words = counter.most_common(top_n)
     return {
         'success': True,
         'total_jobs': len(rows),
         'words': top_words,
     }
+
 
 
 # ---------- 命令行测试 ----------

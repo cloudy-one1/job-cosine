@@ -2,7 +2,7 @@
 {% block content %}
 
 <style>
-    /* 岗位链接 — 默认与周围文字完全一致，悬停时浮起+变蓝+律动 */
+    /* 岗位链接 — 默认与周围文字完全一致 */
     .job-link {
         color: var(--ink);
         text-decoration: none;
@@ -12,19 +12,31 @@
     }
     .job-link:hover {
         color: #2563eb;
-        animation: floatPulse 1.1s ease-in-out infinite;
     }
 
-    @keyframes floatPulse {
-        0%, 100% {
-            transform: translateY(0) scale(1.25);
-            text-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
-        }
-        50% {
-            transform: translateY(-5px) scale(1.25);
-            text-shadow: 0 5px 14px rgba(37, 99, 235, 0.45);
-        }
+    /* 表格行悬停 — 整行变大变色浮动，点击整行跳转 */
+    .data-row {
+        transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+        cursor: pointer;
     }
+    .data-row:hover {
+        transform: translateY(-3px) scale(1.02);
+        background-color: #eef2ff;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.18);
+        position: relative;
+        z-index: 10;
+    }
+    .data-row:hover td {
+        color: #2563eb;
+    }
+    .data-row:hover .job-link {
+        color: #2563eb;
+    }
+
+    /* 圆角表格 */
+    .table { border-radius:12px; overflow:hidden; border-collapse:separate; border-spacing:0; }
+    .table th:first-child{ border-top-left-radius:12px; }
+    .table th:last-child{ border-top-right-radius:12px; }
 </style>
 
 <p class="eyebrow">案卷 NO. 02 · 数据展示</p>
@@ -44,7 +56,7 @@
         </div>
         <button class="btn btn-info" type="submit" style="padding:12px 32px;">🔍 搜索</button>
     </div>
-    <p style="margin:6px 0 0 0; font-size:12px; color:var(--ink-soft);">注：精确匹配，请输入完整岗位名称或城市</p>
+    <p style="margin:6px 0 0 0; font-size:13px; color:var(--ink-soft);">注：精确匹配，请输入完整岗位名称或城市</p>
 </form>
 
 <div class="card" data-no="共 {{ total }} 条记录">
@@ -54,7 +66,7 @@
             <th>职位</th><th>公司</th><th>城市</th><th>最低薪资(千元)</th><th>最高薪资(千元)</th><th>发布时间</th>
         </tr>
         {% for row in rows %}
-        <tr>
+        <tr class="data-row" onclick="window.location='{{ url_for('job_detail', job_id=row[0]) }}'">
             <td><a href="{{ url_for('job_detail', job_id=row[0]) }}" class="job-link">{{ row[1] }}</a></td>
             <td>{{ row[2] or '-' }}</td>
             <td>{{ row[3] }}</td>
@@ -75,7 +87,7 @@
     {% if page > 1 %}
         <a href="{{ url_for('list_data', page=page-1, kw=kw or '', city=city or '') }}" class="btn btn-default">← 上一页</a>
     {% endif %}
-    <span class="mono" style="margin:0 16px; color:var(--ink-soft); font-size:13px;">第 {{ page }} / {{ total_pages }} 页</span>
+    <span class="mono" style="margin:0 16px; color:var(--ink-soft); font-size:14px;">第 {{ page }} / {{ total_pages }} 页</span>
     {% if page < total_pages %}
         <a href="{{ url_for('list_data', page=page+1, kw=kw or '', city=city or '') }}" class="btn btn-default">下一页 →</a>
     {% endif %}

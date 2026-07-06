@@ -7,7 +7,7 @@
         display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 24px;
     }
     .tab-btn {
-        font-family: 'Noto Sans SC', sans-serif; font-size: 16px; font-weight: 600;
+        font-family: 'Noto Sans SC', sans-serif; font-size: 17px; font-weight: 600;
         padding: 12px 28px; border: none; border-bottom: 3px solid transparent;
         background: transparent; color: var(--ink-soft); cursor: pointer;
         transition: .15s ease; margin-bottom: -2px;
@@ -24,19 +24,19 @@
         display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;
     }
     .compare-card {
-        background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 16px;
         padding: 24px; position: relative;
     }
     .compare-card .card-label {
-        font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .06em;
+        font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .06em;
         color: var(--ink-soft); text-transform: uppercase; margin-bottom: 8px;
     }
     .compare-card .card-value {
-        font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 24px;
+        font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 28px;
         color: var(--ink); margin-bottom: 14px;
     }
     .compare-stat { display: flex; justify-content: space-between; padding: 6px 0;
-        border-bottom: 1px solid var(--line); font-size: 14px; }
+        border-bottom: 1px solid var(--line); font-size: 15px; }
     .compare-stat .stat-label { color: var(--ink-soft); }
     .compare-stat .stat-value { font-weight: 600; }
 </style>
@@ -91,11 +91,11 @@
     </div>
 
     <div class="card" data-no="处理记录" style="margin-top:20px;">
-        <h4 style="font-size:15px; margin-bottom:14px;">思考过程（AI协作过程展示）</h4>
+        <h4 style="font-size:16px; margin-bottom:14px;">思考过程（AI协作过程展示）</h4>
         {% for step in trace %}
         <div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line);">
-            <div class="mono" style="color:var(--brass); font-size:12px; flex-shrink:0; width:40px;">#{{ step.step }}</div>
-            <div style="font-size:14.5px; line-height:1.7;">
+            <div class="mono" style="color:var(--brass); font-size:13px; flex-shrink:0; width:40px;">#{{ step.step }}</div>
+            <div style="font-size:15.5px; line-height:1.7;">
                 {% if step.type == 'action' %}
                     调用工具 <span class="mono" style="color:var(--teal);">{{ step.tool }}</span>
                     参数 <span class="mono">{{ step.input }}</span><br>
