@@ -69,8 +69,7 @@ project1/
 │   ├── edu_premium.py           — 学历溢价分析 (硕士vs本科vs大专薪资差)
 │   ├── salary_curve.py          — 薪资成长曲线 (经验-薪资趋势)
 │   ├── job_similarity.py        — 岗位相似度网络 (余弦相似度,转型建议)
-│   ├── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵)
-│   └── cache.py                 — 模型结果缓存 (单一真相来源)
+│   └── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵)
 │
 ├── agent/                    # Agent 层：大模型对话
 │   ├── agent_core.py            — 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback
@@ -85,7 +84,7 @@ project1/
 │   ├── advice.html (暖色调重设计:药丸导航+卡片布局+3-tab)
 │   ├── collect.html
 │
-├── tests/                    # 测试 (226 个用例, 全部通过)
+├── tests/                    # 测试 (213 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试
 │   ├── test_advice_route.py     — advice 功能测试
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试
