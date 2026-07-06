@@ -11,6 +11,8 @@
 | 描述性统计 | 薪资/学历/经验/城市分布 | Pandas + SQLite |
 | 职位聚类 | 自动发现职位类别结构 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
 | 薪资预测 | 多维特征回归(线性+随机森林三模型对比) | Scikit-Learn + OneHotEncoder + RandomForest |
+| 技能词云 | 51job官方标签+标题分词 双源加权词频 | Jieba + 51job jobTags |
+| AI 图表解读 | DeepSeek 实时分析图表数据，点击即生成 | AJAX + agent_core.call_deepseek |
 | AI Agent | 自然语言交互式数据分析 + 城市对比 | 手写 ReAct 推理循环 + LLM 工具调用 |
 | Docker 部署 | 一键容器化运行 | Docker + docker-compose |
 
@@ -72,7 +74,7 @@ project1/
 │
 ├── templates/                # HTML 模板 (8 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
-│   ├── h.html (薪资柱状+学历饼图+经验饼图+城市横向柱状+薪资vs经验/学历交叉分析)
+│   ├── h.html (薪资/学历/经验/城市分布图+交叉分析+技能词云+AI图表解读)
 │   ├── ml.html (规则vs聚类对比图+城市分布图)
 │   ├── advice.html, collect.html
 │
