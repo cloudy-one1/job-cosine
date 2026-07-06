@@ -28,12 +28,15 @@ from sklearn.metrics import r2_score, mean_absolute_error
 
 
 def get_rows():
-    db = sqlite3.connect(config.DB_PATH)
-    cursor = db.cursor()
-    cursor.execute("SELECT post, address, salary_min, salary_max, edu, exper FROM data")
-    rows = cursor.fetchall()
-    db.close()
-    return rows
+    try:
+        db = sqlite3.connect(config.DB_PATH)
+        cursor = db.cursor()
+        cursor.execute("SELECT post, address, salary_min, salary_max, edu, exper FROM data")
+        rows = cursor.fetchall()
+        db.close()
+        return rows
+    except sqlite3.Error:
+        return []
 
 
 def build_dataset(include_edu_exper=True):
@@ -171,26 +174,90 @@ def predict_salary_safe(model, city, category, edu, exper, valid_edu, valid_expe
     return pred, matched_edu, matched_exper, warnings
 
 
-if __name__ == '__main__':
-    result = train_and_evaluate()
-    print(f"训练样本数: {result['n_train']}, 测试样本数: {result['n_test']}")
-    print(f"仅使用 city + category              R2={result['old_r2']:.3f}  MAE={result['old_mae']:.2f}k 元")
-    print(f"使用 city + category + 学历 + 经验(线性) R2={result['r2']:.3f}  MAE={result['mae']:.2f}k 元")
-    print(f"使用 city + category + 学历 + 经验(随机森林) R2={result['rf_r2']:.3f}  MAE={result['rf_mae']:.2f}k 元")
-    if result['r2'] > result['old_r2']:
-        print(">> 学历与经验特征提升了线性回归 R2")
-    else:
-        print(">> 学历与经验特征未提升线性回归 R2")
-    if result['rf_r2'] > result['r2']:
-        print(">> 随机森林 R2 优于线性回归 (非线性关系强)")
-    else:
-        print(">> 随机森林 R2 未优于线性回归 (样本量小/关系接近线性)")
-    print(f"基线(预测为训练平均值)MAE: {result['baseline_mae']:.2f}k 元/月")
+def _contains_word(needle, haystack):
+    """双向包含匹配，但要求 needle 至少 2 个字符，防止单字误匹配。"""
+    if not needle or not haystack:
+        return False
+    if len(needle) < 2:
+        return needle == haystack
+    return needle in haystack or haystack in needle
 
-    print('\n预测示例:')
-    for city, cat, edu, exp in [
-        ('北京', '后端开发', '本科', '3-5年'),
-        ('上海', '后端开发', '大专', '1-3年'),
-    ]:
-        pred = predict_salary(result['model'], city, cat, edu, exp)
-        print(f"  {city} + {cat} + {edu} + {exp} -> {pred}k 元/月")
+
+def lookup_salary_range(city='', category='', edu='', exper=''):
+    """数据库驱动的薪资参考查询 — 零模型，纯统计。
+
+    从数据库中筛选匹配 (城市 + 职位类别 + 学历 + 经验) 的岗位，
+    返回真实薪资的描述性统计（中位数、均值、范围、分位数）。
+
+    Args:
+        city: 城市名称（如"北京"、"上海"，模糊匹配）
+        category: 职位类别（如"后端开发"、"Web/前端"，双向模糊匹配）
+        edu: 学历过滤（空或"不限"表示不过滤）
+        exper: 经验过滤（空或"经验不限"表示不过滤）
+
+    Returns:
+        dict: {
+            count, median, mean, min, max, p25, p75  — 薪资统计，单位K
+            或 {count, message} — 数据不足时
+        }
+    """
+    try:
+        rows = get_rows()
+    except Exception:
+        return {'count': 0, 'message': '数据库读取失败，请稍后重试'}
+    matched = []
+    for post, addr, smin, smax, edu_val, exper_val in rows:
+        if not smin and not smax:
+            continue
+        # 城市过滤（模糊：输入"北京"能匹配"北京-海淀区"，但"海"不会误匹配"上海"）
+        if city:
+            addr_city = addr.split('-')[0] if addr else ''
+            if not _contains_word(city, addr_city):
+                continue
+        # 类别过滤（双向模糊：输入"后端"能匹配"后端开发"）
+        if category:
+            cat = classify(post)
+            if not _contains_word(category, cat):
+                continue
+        # 学历过滤（要求至少2字符匹配，防单字误匹配）
+        if edu and edu != '不限':
+            if not edu_val or not _contains_word(edu, edu_val):
+                continue
+        # 经验过滤
+        if exper and exper != '经验不限':
+            if not exper_val or not _contains_word(exper, exper_val):
+                continue
+        matched.append((smin + smax) / 2)
+
+    if len(matched) < 3:
+        msg = '匹配岗位数量不足 (需要≥3)，请放宽条件' if matched else '未找到匹配岗位'
+        return {'count': len(matched), 'message': msg}
+
+    arr = np.array(matched)
+    return {
+        'count': len(matched),
+        'median': round(float(np.median(arr)), 1),
+        'mean': round(float(np.mean(arr)), 1),
+        'min': round(float(np.min(arr)), 1),
+        'max': round(float(np.max(arr)), 1),
+        'p25': round(float(np.percentile(arr, 25)), 1),
+        'p75': round(float(np.percentile(arr, 75)), 1),
+    }
+
+
+if __name__ == '__main__':
+    print('=== 薪资参考查询（数据库驱动，零模型）===\n')
+    for city, cat in [('北京', '后端开发'), ('上海', 'Web/前端'), ('深圳', '数据')]:
+        r = lookup_salary_range(city, cat)
+        if 'message' in r:
+            print(f'  {city} + {cat}: {r["message"]}')
+        else:
+            print(f'  {city} + {cat}: '
+                  f'中位数={r["median"]}K  均值={r["mean"]}K  '
+                  f'范围 {r["min"]}-{r["max"]}K  (共{r["count"]}个岗位)')
+    print('\n=== 旧版 ML 模型（保留兼容，仅供参考）===')
+    result = train_and_evaluate()
+    print(f"训练样本: {result['n_train']}, 测试样本: {result['n_test']}")
+    print(f"线性回归 R²={result['r2']:.3f}  MAE={result['mae']:.2f}K")
+    print(f"随机森林 R²={result['rf_r2']:.3f}  MAE={result['rf_mae']:.2f}K")
+    print(f"注意: R² 为负表示模型预测不如直接猜平均值，已用 lookup_salary_range() 替代。")

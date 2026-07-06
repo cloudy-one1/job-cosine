@@ -61,8 +61,8 @@
 }
 </style>
 
-<p class="eyebrow">案卷 NO. 03 · 可视化数据分析</p>
-<h2 style="margin-bottom:24px;">招聘数据可视化</h2>
+<p class="eyebrow">案卷 NO. 03 · 图表分析</p>
+<h2 style="margin-bottom:24px;">多维度数据可视化</h2>
 
 <div class="chart-layout">
     <!-- ===== 左侧导航 ===== -->
@@ -225,6 +225,7 @@ const ALL_DATA = {
     xueli: {{ xl|tojson }},
     jinyan: {{ jy|tojson }},
     wordcloud: {{ wc_data|tojson }},
+    cross: true,
     cross_exper: {{ cross_exper|tojson }},
     cross_edu: {{ cross_edu|tojson }}
 };
@@ -828,6 +829,31 @@ const tip = {
 })();
 {% endif %}
 // ---------- AI 分析 ----------
+// sessionStorage 持久化：缓存跨页面导航不丢，关闭标签页自动清空
+var AI_CACHE_PREFIX = '_ai_cache_';
+var AI_LAST_KEY = '_ai_last_section';
+var AI_LAST_TEXT = '_ai_last_text';
+var AI_CACHE_TTL = 300000;  // 5 分钟（匹配服务端缓存）
+
+function _aiCacheGet(section) {
+    try {
+        var raw = sessionStorage.getItem(AI_CACHE_PREFIX + section);
+        if (!raw) return null;
+        var entry = JSON.parse(raw);
+        if (Date.now() - entry.ts > AI_CACHE_TTL) {
+            sessionStorage.removeItem(AI_CACHE_PREFIX + section);
+            return null;
+        }
+        return entry.text;
+    } catch(e) { return null; }
+}
+
+function _aiCacheSet(section, text) {
+    try {
+        sessionStorage.setItem(AI_CACHE_PREFIX + section, JSON.stringify({ ts: Date.now(), text: text }));
+    } catch(e) { /* quota exceeded, ignore */ }
+}
+
 var TITLES = {
     city: '城市分布 · AI 直观分析',
     salary: '薪资分布 · AI 直观分析',
@@ -844,12 +870,28 @@ function showAI(event, section){
     var title = document.getElementById('ai_title');
     var content = document.getElementById('ai_content');
     title.textContent = TITLES[section] || 'AI 直观分析';
+    overlay.style.display = 'flex';
+
+    // 保存当前查看的 section（切页回来可自动恢复）
+    try { sessionStorage.setItem(AI_LAST_KEY, section); } catch(e) {}
+
     content.innerHTML = '<p style="text-align:center;padding:24px;color:#9C7F3F;">'
         + '<span style="display:inline-block;animation:ai-spin .8s linear infinite;font-size:24px;">⏳</span>'
         + '<br/>AI 正在分析数据…</p>';
-    overlay.style.display = 'flex';
 
-    // 从 meta 标签获取 CSRF token
+    // sessionStorage 缓存命中 → 也假装加载 2 秒再呈现
+    var cached = _aiCacheGet(section);
+    if (cached) {
+        var cachedText = cached;
+        setTimeout(function(){
+            content.innerHTML = formatAIResponse(cachedText);
+        }, 2000);
+        try { sessionStorage.setItem(AI_LAST_TEXT, cached); } catch(e) {}
+        return;
+    }
+
+    // 未缓存 → 调 API，并确保至少 2 秒加载
+    var fetchStart = Date.now();
     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 
@@ -858,25 +900,95 @@ function showAI(event, section){
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
         body: JSON.stringify({ section: section })
     })
-    .then(function(r){ return r.text(); })
+    .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+    })
     .then(function(text){
-        // 检查是否服务端错误
         if(text.indexOf('{"error"') === 0){
             try { var err = JSON.parse(text); throw new Error(err.error); } catch(e){ throw e; }
         }
-        content.innerHTML = formatAIResponse(text);
+        _aiCacheSet(section, text);
+        try { sessionStorage.setItem(AI_LAST_TEXT, text); } catch(e) {}
+        var elapsed = Date.now() - fetchStart;
+        var minWait = Math.max(0, 2000 - elapsed);
+        setTimeout(function(){
+            content.innerHTML = formatAIResponse(text);
+        }, minWait);
     })
     .catch(function(err){
         console.warn('AI分析API失败,启用本地分析:', err.message);
-        content.innerHTML = generateAI(section);
+        var elapsed = Date.now() - fetchStart;
+        var minWait = Math.max(0, 2000 - elapsed);
+        setTimeout(function(){
+            content.innerHTML = generateAI(section);
+        }, minWait);
     });
 }
+
 function closeAI(){
     document.getElementById('ai_overlay').style.display = 'none';
+    // 手动关闭 → 清除自动恢复标记
+    try { sessionStorage.removeItem(AI_LAST_KEY); sessionStorage.removeItem(AI_LAST_TEXT); } catch(e) {}
 }
+
 document.getElementById('ai_overlay').addEventListener('click', function(e){
     if(e.target === this) closeAI();
 });
+
+// ---------- AI 预取：页面加载后后台并发请求全部 6 个 section ----------
+function fetchAISection(section){
+    // 先查 sessionStorage 缓存，命中则跳过请求
+    var cached = _aiCacheGet(section);
+    if (cached) return Promise.resolve(cached);
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+    return fetch('/chart/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ section: section })
+    }).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+    }).then(function(text){
+        if(text.indexOf('{"error"') !== 0){
+            _aiCacheSet(section, text);
+        }
+        return text;
+    });
+}
+
+(function prefetchAllAI(){
+    ['city','salary','xueli','jinyan','wordcloud','cross'].forEach(function(s){
+        fetchAISection(s).catch(function(e){ console.warn('AI预取失败', s, e); });
+    });
+})();
+
+// ---------- 切页面回来后自动恢复上次 AI 分析弹窗 ----------
+(function restoreLastAI(){
+    var lastSection = null;
+    var lastText = null;
+    try {
+        lastSection = sessionStorage.getItem(AI_LAST_KEY);
+        lastText = sessionStorage.getItem(AI_LAST_TEXT);
+        // 读取后清除标记（只恢复一次，避免每次刷新都弹）
+        sessionStorage.removeItem(AI_LAST_KEY);
+        sessionStorage.removeItem(AI_LAST_TEXT);
+    } catch(e) {}
+
+    if (lastSection && lastText) {
+        setTimeout(function(){
+            var overlay = document.getElementById('ai_overlay');
+            if (!overlay) return;
+            var title = document.getElementById('ai_title');
+            var content = document.getElementById('ai_content');
+            title.textContent = TITLES[lastSection] || 'AI 直观分析';
+            content.innerHTML = formatAIResponse(lastText);
+            overlay.style.display = 'flex';
+        }, 500);  // 稍等 ECharts 渲染
+    }
+})();
 
 function formatAIResponse(text){
     // 将 AI 返回的纯文本/Markdown 转为带样式的 HTML
@@ -969,7 +1081,7 @@ function generateAI(section){
         if(!d || !d.words || !d.words.length) return '<p>暂无词云数据</p>';
         var words = d.words;
         var top5 = words.slice(0, 5);
-        html += '<p><b>数据概况：</b>从岗位描述中提取出 <b>' + words.length + '</b> 个高频技能关键词。</p>';
+        html += '<p><b>数据概况：</b>从职位标签中提取出 <b>' + words.length + '</b> 个高频技能关键词。</p>';
         html += '<p><b>TOP 5 热词：</b></p><ol>';
         top5.forEach(function(it, i){
             html += '<li><b>' + it[0] + '</b> — 出现 ' + it[1] + ' 次</li>';

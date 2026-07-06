@@ -22,6 +22,9 @@
 import os
 import sys
 import json
+import uuid
+import time
+import requests
 import warnings
 
 # 消掉 jieba → pkg_resources 的弃用警告
@@ -32,7 +35,8 @@ import re as _re
 import logging
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, g, url_for
+from flask import Flask, render_template, request, redirect, g, url_for, session, abort
+
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -64,8 +68,7 @@ _logger.addHandler(_console_handler)
 from data.python_job_scraper import scrape_jobs
 from data.salary_parser import parse_salary
 
-# --- 模型缓存（仅此模块本身轻量，内部含延迟导入） ---
-from modeling.cache import update as _model_update, get as _model_get
+# --- 聚类模型懒加载（无薪资预测模型） ---
 
 app = Flask(__name__)
 
@@ -95,6 +98,22 @@ except Exception:
     pass
 
 PER_PAGE = 12
+
+# =============================================================================
+# 模块级状态 / 缓存变量（集中在此处，禁止分散定义）
+# =============================================================================
+_chart_analysis_cache = {}          # 图表 AI 分析结果缓存: {section: (timestamp, text)}
+_ml_analysis_cache = {}             # /ml 页面 AI 分析结果缓存: {section: (timestamp, text)}
+_CHART_CACHE_TTL = 300              # AI 分析缓存有效期，秒（5 分钟）
+_ML_CACHE_TTL = 120                 # /ml AI 分析缓存有效期，秒（2 分钟，保证实时性）
+_chart_data_cache = None            # 图表数据缓存: (timestamp, data_dict)
+_CHART_DATA_CACHE_TTL = 300         # 图表数据缓存有效期，秒（5 分钟）
+_clustering_cache = None            # 聚类结果懒加载缓存（首次 /ml 访问时训练填充）
+_skill_heatmap_cache = None         # 技能供需热力图缓存
+_job_similarity_cache = None        # 岗位相似度网络缓存
+_salary_curve_cache = None          # 薪资成长曲线缓存
+_edu_premium_cache = None           # 学历溢价分析缓存
+_conversations = {}                 # Agent 对话持久化: {chat_uuid: {question, answer, trace}}
 
 
 # --- 数据库迁移 ----------------------------------------------------------------
@@ -162,40 +181,38 @@ def _raw_connect():
 
 # --- 模型持久化 ------------------------------------------------------------
 # 启动时优先从磁盘加载已训练的模型,避免每次重启都重训 (joblib)
+def _cluster_cache_has_job_ids(cluster):
+    """检查聚类缓存是否包含方向岗位明细所需的 job_ids 字段。"""
+    if not isinstance(cluster, dict) or 'clusters' not in cluster:
+        return False
+    return all('job_ids' in c for c in cluster['clusters'])
+
+
 def _load_or_train_models():
-    """尝试加载磁盘缓存的模型;失败或不存在则重训并持久化。"""
+    """尝试加载磁盘缓存的聚类模型;失败或不存在/格式过旧则重训并持久化。"""
     import joblib as _joblib
     import modeling.job_clustering as job_clustering
-    import modeling.salary_predict as salary_predict
 
     _cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
     os.makedirs(_cache_dir, exist_ok=True)
     _cluster_path = os.path.join(_cache_dir, 'clustering_result.joblib')
-    _salary_path = os.path.join(_cache_dir, 'salary_model.joblib')
 
     if not _has_data():
         _logger.warning('数据库为空,跳过模型预计算。请先执行数据采集后再使用 /ml 和 Agent 功能。')
         return None
 
-    # 尝试加载持久化模型
+    # 尝试加载持久化聚类模型
     cluster = None
     try:
         if os.path.exists(_cluster_path):
             cluster = _joblib.load(_cluster_path)
-            _logger.info('从磁盘加载聚类结果')
+            if not _cluster_cache_has_job_ids(cluster):
+                _logger.info('检测到旧版聚类缓存缺少 job_ids,将重新训练')
+                cluster = None
+            else:
+                _logger.info('从磁盘加载聚类结果 (k=%d)', cluster['k'])
     except Exception as e:
         _logger.warning('聚类结果加载失败,将重新计算: %s', e)
-
-    try:
-        if os.path.exists(_salary_path):
-            salary_result = _joblib.load(_salary_path)
-            _model_update(salary_result)
-            _logger.info('从磁盘加载薪资预测模型 (R²=%.3f)', salary_result['r2'])
-        else:
-            salary_result = None
-    except Exception as e:
-        _logger.warning('薪资模型加载失败,将重新训练: %s', e)
-        salary_result = None
 
     # 缺失则训练
     try:
@@ -203,15 +220,9 @@ def _load_or_train_models():
             cluster = job_clustering.run_clustering()
             _joblib.dump(cluster, _cluster_path)
             _logger.info('聚类模型已训练并保存到磁盘 (k=%d)', cluster['k'])
-        if salary_result is None:
-            salary_result = salary_predict.train_and_evaluate()
-            _model_update(salary_result)
-            _joblib.dump(salary_result, _salary_path)
-            _logger.info('薪资预测模型已训练并保存到磁盘 (R²=%.3f)', salary_result['r2'])
     except Exception as e:
-        _logger.error('模型训练失败: %s。部分功能可能不可用。', e)
-        if cluster is None:
-            cluster = None
+        _logger.error('聚类训练失败: %s。部分功能可能不可用。', e)
+        cluster = None
 
     return cluster
 
@@ -228,9 +239,49 @@ def _has_data():
         return False
 
 
-# 聚类结果懒加载：不在启动时触发 sklearn/pandas 的首次 .pyc 编译，
-# 等首个访问 /ml 或 /predict 的请求到来时才计算（避免误判启动卡死）
-_clustering_cache = None
+# 相关缓存变量（_chart_analysis_cache / _chart_data_cache 等）已集中定义在模块顶部「模块级状态」区块
+
+def _invalidate_chart_analysis_cache():
+    """清空图表 AI 分析缓存 + 图表数据缓存 + /ml 分析缓存，采集新数据后必须调用。"""
+    global _chart_data_cache
+    _chart_analysis_cache.clear()
+    _ml_analysis_cache.clear()
+    _chart_data_cache = None
+    _logger.debug('图表 AI 分析缓存 + 数据缓存 + /ml 分析缓存已清空')
+
+
+def _compute_chart_data():
+    """计算图表所需全部统计数据（带 5 分钟缓存）。"""
+    global _chart_data_cache
+    now = time.time()
+    if _chart_data_cache and now - _chart_data_cache[0] < _CHART_DATA_CACHE_TTL:
+        return _chart_data_cache[1]
+
+    import analysis.xinzi as xinzi
+    import analysis.xueli as xueli
+    import analysis.jinyan as jinyan
+    import analysis.region as region
+    import analysis.cross as cross
+    from analysis.wordcloud_gen import generate_wordcloud_data
+
+    data = {
+        'xz': xinzi.xinzi(),
+        'xl': xueli.xuelifun(),
+        'jy': jinyan.jinyanfun(),
+        'city_data': region.regionfun(),
+        'cross_exper': cross.salary_vs_exper(),
+        'cross_edu': cross.salary_vs_edu(),
+        'wc_data': generate_wordcloud_data(top_n=60),
+    }
+    _logger.info('图表数据缓存已更新')
+    _chart_data_cache = (now, data)
+    return data
+
+
+# 聚类结果懒加载设计说明：
+# 不在启动时触发 sklearn/pandas 的首次 .pyc 编译，
+# 等首个访问 /ml 的请求到来时才计算（避免误判启动卡死）。
+# 薪资查询已替换为纯数据库查（/salary-lookup），不依赖任何 ML 模型。
 
 def _get_clustering():
     """获取聚类结果（首次调用时训练+缓存，后续直接返回）。"""
@@ -244,11 +295,97 @@ def _get_clustering():
     return _clustering_cache
 
 
+def _get_skill_heatmap():
+    """获取技能供需热力图数据（懒加载缓存）。"""
+    global _skill_heatmap_cache
+    if _skill_heatmap_cache is not None:
+        return _skill_heatmap_cache
+    try:
+        from modeling.skill_heatmap import compute_skill_heatmap
+        _skill_heatmap_cache = compute_skill_heatmap()
+    except Exception as e:
+        _logger.warning('技能热力图计算失败: %s', e)
+        _skill_heatmap_cache = {'error': str(e), 'total_rows': 0}
+    return _skill_heatmap_cache
+
+
+def _get_similarity():
+    """获取岗位相似度网络数据（懒加载缓存）。"""
+    global _job_similarity_cache
+    if _job_similarity_cache is not None:
+        return _job_similarity_cache
+    clustering = _get_clustering()
+    if not clustering:
+        _job_similarity_cache = {'error': '聚类模型未训练'}
+        return _job_similarity_cache
+    try:
+        from modeling.job_similarity import compute_similarity_network
+        _job_similarity_cache = compute_similarity_network(clustering)
+    except Exception as e:
+        _logger.warning('相似度网络计算失败: %s', e)
+        _job_similarity_cache = {'error': str(e)}
+    return _job_similarity_cache
+
+
+def _get_salary_curve():
+    """获取薪资成长曲线数据（懒加载缓存）。"""
+    global _salary_curve_cache
+    if _salary_curve_cache is not None:
+        return _salary_curve_cache
+    try:
+        from modeling.salary_curve import compute_salary_curve
+        _salary_curve_cache = compute_salary_curve()
+    except Exception as e:
+        _logger.warning('薪资曲线计算失败: %s', e)
+        _salary_curve_cache = {'error': str(e), 'total_rows': 0}
+    return _salary_curve_cache
+
+
+def _get_edu_premium():
+    """获取学历溢价分析数据（懒加载缓存）。"""
+    global _edu_premium_cache
+    if _edu_premium_cache is not None:
+        return _edu_premium_cache
+    try:
+        from modeling.edu_premium import compute_edu_premium
+        _edu_premium_cache = compute_edu_premium()
+    except Exception as e:
+        _logger.warning('学历溢价计算失败: %s', e)
+        _edu_premium_cache = {'error': str(e), 'total_rows': 0}
+    return _edu_premium_cache
+
+
+def _invalidate_modeling_caches():
+    """清空所有建模模块缓存（采集新数据/重训后调用）。"""
+    global _skill_heatmap_cache, _job_similarity_cache, _salary_curve_cache, _edu_premium_cache
+    _skill_heatmap_cache = None
+    _job_similarity_cache = None
+    _salary_curve_cache = None
+    _edu_premium_cache = None
+    _logger.debug('建模模块全部缓存已清空')
+
+
 @app.route('/')
 def index():
     from data.python_job_scraper import get_province_city_map
     city_map = get_province_city_map()
     return render_template('input.html', city_map_json=json.dumps(city_map, ensure_ascii=False))
+
+
+@app.route('/api/warmup')
+def api_warmup():
+    """静默预热接口：首页加载后前端静默调用，提前计算图表数据 + 训练聚类模型。
+    此后用户点「图表分析」「薪资洞察」即可秒开。"""
+    try:
+        _compute_chart_data()
+    except Exception as e:
+        _logger.warning('预热图表数据失败: %s', e)
+    try:
+        _get_clustering()
+    except Exception as e:
+        _logger.warning('预热聚类模型失败: %s', e)
+    _logger.info('预热完成: 图表数据 + 聚类模型均已就绪')
+    return '{"ok":true}', 200, {'Content-Type': 'application/json'}
 
 
 @app.route('/list')
@@ -333,29 +470,15 @@ def chart(section='city'):
     valid_sections = {'city', 'salary', 'xueli', 'jinyan', 'wordcloud', 'cross'}
     if section not in valid_sections:
         section = 'city'
-    import analysis.xinzi as xinzi
-    import analysis.xueli as xueli
-    import analysis.jinyan as jinyan
-    import analysis.region as region
-    import analysis.cross as cross
-    from analysis.wordcloud_gen import generate_wordcloud_data
-    xz = xinzi.xinzi()
-    xl = xueli.xuelifun()
-    jy = jinyan.jinyanfun()
-    city_data = region.regionfun()
-    cross_exper = cross.salary_vs_exper()
-    cross_edu = cross.salary_vs_edu()
-    wc_data = generate_wordcloud_data(top_n=60)
-    return render_template('h.html', section=section, xz=xz, xl=xl, jy=jy,
-                           city_data=city_data, cross_exper=cross_exper,
-                           cross_edu=cross_edu, wc_data=wc_data)
+    data = _compute_chart_data()
+    return render_template('h.html', section=section, **data)
 
 
 @app.route('/chart/analyze', methods=['POST'])
 def chart_analyze():
-    """DeepSeek 数据驱动图表分析接口。
-    接收前端 AJAX 请求,将当前数据传给 DeepSeek 实时生成针对性的直观分析。
-    每次采集新数据后,分析结论会相应变化,而非套用固定模板。"""
+    """DeepSeek 数据驱动图表分析接口（带 5 分钟服务端缓存）。
+    首次调用后相同 section 的结果被缓存，后续请求直接返回，实现秒开。
+    采集新数据后缓存由 /collect 主动清空。"""
     import json as _json
     data = request.get_json(silent=True) or {}
     section = data.get('section', 'city')
@@ -363,22 +486,22 @@ def chart_analyze():
     if section not in valid_sections:
         return _json.dumps({'error': '无效的分析类型'}), 400
 
-    # 获取所有数据(与 /chart 路由一致)
-    import analysis.xinzi as xinzi
-    import analysis.xueli as xueli
-    import analysis.jinyan as jinyan
-    import analysis.region as region
-    import analysis.cross as cross
-    from analysis.wordcloud_gen import generate_wordcloud_data
+    # 缓存命中 → 直接返回
+    cached = _chart_analysis_cache.get(section)
+    if cached and (time.time() - cached[0]) < _CHART_CACHE_TTL:
+        _logger.debug('图表 AI 缓存命中: section=%s', section)
+        return cached[1]
 
+    # 获取所有数据(复用图表数据缓存)
     try:
-        xz_val = xinzi.xinzi()
-        xl_val = xueli.xuelifun()
-        jy_val = jinyan.jinyanfun()
-        city_val = region.regionfun()
-        cross_exper = cross.salary_vs_exper()
-        cross_edu = cross.salary_vs_edu()
-        wc_val = generate_wordcloud_data(top_n=60)
+        chart_data = _compute_chart_data()
+        xz_val = chart_data['xz']
+        xl_val = chart_data['xl']
+        jy_val = chart_data['jy']
+        city_val = chart_data['city_data']
+        cross_exper = chart_data['cross_exper']
+        cross_edu = chart_data['cross_edu']
+        wc_val = chart_data['wc_data']
     except Exception as e:
         return _json.dumps({'error': f'数据查询失败: {str(e)}'}), 500
 
@@ -425,7 +548,7 @@ def chart_analyze():
 
     data_desc, instruction = section_map[section]
 
-    prompt = f"""你是招聘市场数据分析助手。以下是当前招聘数据库的真实数据,请据此给出直观、有见地的分析。
+    prompt = f"""以下是当前招聘数据库中通过爬虫真实采集的数据。请严格据此给出分析。
 
 【数据】
 {data_desc}
@@ -433,124 +556,350 @@ def chart_analyze():
 【要求】
 {instruction}
 
-重要:只基于提供的具体数字说话,不要编造数据或引用外部知识。"""
+重要约束:
+- 数据结论必须来自上述数据的具体数字,限定在"本数据库采集的岗位中"。
+- 不得编造具体数字。数据不足时诚实说明"暂无相关数据"。
+- 可适当补充普适性求职建议(非数据库内容),但必须用 **【普适性建议】** 前缀标注,与数据结论明确区分。"""
     api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
-    if not api_key:
-        return _json.dumps({'error': 'DEEPSEEK_API_KEY 未配置,无法生成分析'}), 503
+    qwen_key = getattr(config, 'QWEN_API_KEY', '')
+    if not api_key and not qwen_key:
+        return _json.dumps({'error': 'DEEPSEEK_API_KEY 和 QWEN_API_KEY 均未配置,无法生成分析'}), 503
 
     try:
-        from agent.agent_core import call_deepseek
+        from agent.agent_core import call_llm_with_fallback
         messages = [
-            {'role': 'system', 'content': '你是一个精准、客观的招聘数据分析助手。只基于给定的数据事实说话,不编造、不泛化。输出纯文本中文分析。'},
+            {'role': 'system', 'content': '你是招聘数据分析助手。数据结论必须来自提供的真实采集数据;可补充普适性建议但必须用**【普适性建议】**标注;数据不足时诚实说明;不编造具体数字。输出纯文本中文。'},
             {'role': 'user', 'content': prompt},
         ]
-        analysis = call_deepseek(messages, api_key, model='deepseek-chat', max_retries=2)
+        analysis, _provider = call_llm_with_fallback(messages, deepseek_key=api_key)
+        _chart_analysis_cache[section] = (time.time(), analysis)
+        _logger.info('图表 AI 分析 provider=%s section=%s', _provider, section)
         return analysis
+    except requests.exceptions.HTTPError as e:
+        status = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
+        msg = 'AI 服务暂时繁忙,请稍后再试' if status == 429 else f'AI 分析生成失败: {str(e)}'
+        return _json.dumps({'error': msg}), 503
     except Exception as e:
         return _json.dumps({'error': f'AI 分析生成失败: {str(e)}'}), 500
 
 
-def _safe_model_metrics(mc):
-    """当模型未训练时,返回安全的默认指标值,避免模板渲染崩溃。
-    模板里使用 model_r2 / model_old_r2 / model_mae / baseline_mae /
-    model_rf_r2 / model_rf_mae 这6个键。"""
-    defaults = {
-        'model_r2': 0, 'model_old_r2': 0, 'model_mae': 0,
-        'baseline_mae': 0, 'model_rf_r2': 0, 'model_rf_mae': 0,
-    }
-    if mc is None:
-        return defaults
-    return {
-        'model_r2': mc.get('r2', 0),
-        'model_old_r2': mc.get('old_r2', 0),
-        'model_mae': mc.get('mae', 0),
-        'baseline_mae': mc.get('baseline_mae', 0),
-        'model_rf_r2': mc.get('rf_r2', 0),
-        'model_rf_mae': mc.get('rf_mae', 0),
-    }
+@app.route('/ml/analyze', methods=['POST'])
+def ml_analyze():
+    """/ml 页面各图表 AI 解读接口（带 2 分钟服务端缓存，支持 fresh 参数强制刷新）。"""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    section = data.get('section', 'cluster')
+    force_fresh = data.get('fresh', False)
+    valid_sections = {'cluster', 'heatmap', 'similarity', 'salary_curve', 'edu_premium'}
+    if section not in valid_sections:
+        return _json.dumps({'error': '无效的分析类型'}), 400
+
+    # 缓存命中 → 直接返回（fresh=1 时跳过缓存）
+    cached = _ml_analysis_cache.get(section)
+    if not force_fresh and cached and (time.time() - cached[0]) < _ML_CACHE_TTL:
+        _logger.debug('/ml AI 缓存命中: section=%s', section)
+        return cached[1]
+
+    # 获取各模块数据
+    clustering = _get_clustering()
+    if not clustering:
+        return _json.dumps({'error': '请先采集数据'}), 503
+
+    heatmap = _get_skill_heatmap()
+    similarity = _get_similarity()
+    salary_curve = _get_salary_curve()
+    edu_premium = _get_edu_premium()
+
+    # 组装各 section 的数据描述与指令
+    section_map = {}
+
+    # --- cluster ---
+    clusters_desc_lines = []
+    for c in clustering.get('clusters', []):
+        kw_str = '、'.join(c.get('top_keywords', [])[:6])
+        clusters_desc_lines.append(
+            f"【{c.get('auto_label','')}】{c.get('count',0)}岗,"
+            f"均薪{c.get('avg_salary',0):.1f}K,"
+            f"区间{c.get('min_salary',0)}-{c.get('max_salary',0)}K,"
+            f"关键词:{kw_str}"
+        )
+    cluster_desc = '\n'.join(clusters_desc_lines)
+    section_map['cluster'] = (
+        f'聚类将{clustering.get("total_jobs",0)}个岗位分为{clustering.get("k",0)}个方向:\n{cluster_desc}',
+        '请分析各方向的岗位规模差异、薪资区间特征以及关键词反映的技术方向差异。'
+        '指出规模最大/薪资最高的方向,并给 Python 开发者选择方向的具体建议。'
+        '用中文,200-350字,直接说结论,不要问候语。'
+    )
+
+    # --- heatmap ---
+    heatmap_desc = ''
+    if heatmap and not heatmap.get('error'):
+        skills = heatmap.get('skills', [])
+        cities = heatmap.get('cities', [])
+        matrix = heatmap.get('salary_matrix', [])
+        top_skills = skills[:8]
+        top_cities = cities[:6]
+        highlights = []
+        for i, skill in enumerate(top_skills):
+            for j, city in enumerate(top_cities):
+                if i < len(matrix) and j < len(matrix[i]) and matrix[i][j] is not None:
+                    if matrix[i][j] >= 20:
+                        highlights.append(f'{city}·{skill}={matrix[i][j]}K')
+        heatmap_desc = f'技能: {",".join(top_skills)}; 城市: {",".join(top_cities)}; '
+        heatmap_desc += f'高薪亮点: {"; ".join(highlights[:15]) if highlights else "各城市技能薪资大致在10-30K区间"}'
+        section_map['heatmap'] = (
+            heatmap_desc,
+            '请根据热力图数据,分析不同技能在各城市的薪资冷热分布:哪些技能在多个城市都是高薪(通用高价值技能),'
+            '哪些技能只在特定城市突出(地域性技能)。'
+            '指出求职者如果想靠某项技能拿到更高薪资,应该重点关注哪些城市,以及哪些技能组合覆盖面最广。'
+            '用中文,180-300字,直接说结论,不要问候语。'
+        )
+
+    # --- similarity ---
+    sim_desc = ''
+    if similarity and not similarity.get('error'):
+        nodes = similarity.get('nodes', [])
+        links = similarity.get('links', [])
+        top_links = sorted(links, key=lambda x: x.get('value', 0), reverse=True)[:5]
+        node_names = [n.get('name', '') for n in nodes[:10]]
+        sim_desc = f'方向节点: {",".join(node_names)}; '
+        sim_desc += '高相似度关系: ' + '; '.join([
+            f'{lk.get("source","")}↔{lk.get("target","")}=({(lk.get("value",0)*100):.0f}%)'
+            for lk in top_links
+        ]) if top_links else '暂无显著相似关系'
+        section_map['similarity'] = (
+            sim_desc,
+            '请分析岗位方向之间的可迁移性:哪些方向技能重叠度高、转方向容易;哪些方向相对独立。'
+            '给出一条具体的转方向建议。'
+            '用中文,180-300字,直接说结论,不要问候语。'
+        )
+
+    # --- salary_curve ---
+    curve_desc = ''
+    if salary_curve and not salary_curve.get('error'):
+        overall = salary_curve.get('overall', [])
+        curve_lines = [
+            f'{d.get("exper","")}段 中位{d.get("median",0)}K 均值{d.get("mean",0)}K({d.get("count",0)}岗)'
+            for d in overall
+        ]
+        curve_desc = '经验-薪资趋势: ' + '; '.join(curve_lines)
+        if len(overall) >= 2:
+            max_growth, max_idx = 0, 0
+            for i in range(1, len(overall)):
+                g = overall[i].get('median', 0) - overall[i-1].get('median', 0)
+                if g > max_growth:
+                    max_growth, max_idx = g, i
+            curve_desc += f'\n薪资跃升最快阶段: {overall[max_idx-1].get("exper","")}→{overall[max_idx].get("exper","")}(+{max_growth}K)'
+        section_map['salary_curve'] = (
+            curve_desc,
+            '请分析薪资随经验的成长规律:哪个阶段增幅最大、天花板在哪。'
+            '给求职者关于经验积累与薪资预期的建议。'
+            '用中文,180-300字,直接说结论,不要问候语。'
+        )
+
+    # --- edu_premium ---
+    edu_desc = ''
+    if edu_premium and not edu_premium.get('error'):
+        overall_edu = edu_premium.get('overall', {})
+        edu_lines = []
+        for level in ['博士', '硕士', '本科', '大专', '高中']:
+            if level in overall_edu:
+                d = overall_edu[level]
+                edu_lines.append(f'{level} 中位{d.get("median",0)}K 均值{d.get("avg_salary",0)}K({d.get("count",0)}岗)')
+        edu_desc = '各学历整体薪资: ' + '; '.join(edu_lines)
+        premiums = edu_premium.get('premiums', [])
+        if premiums:
+            top_p = []
+            for p in premiums[:5]:
+                for prem in p.get('premiums', [])[:3]:
+                    top_p.append(
+                        f'{p.get("city","")}-{p.get("category","")}: '
+                        f'{prem.get("from","")}→{prem.get("to","")}溢价{prem.get("premium_pct",0)}%'
+                    )
+            edu_desc += '\n典型溢价案例: ' + '; '.join(top_p[:8])
+        section_map['edu_premium'] = (
+            edu_desc,
+            '请分析学历对薪资的真实影响:高学历溢价是否显著、哪些方向学历溢价最高。'
+            '给不同学历背景的求职者针对性建议。'
+            '用中文,180-300字,直接说结论,不要问候语。'
+        )
+
+    if section not in section_map:
+        return _json.dumps({'error': '数据不足,无法生成该分析'}), 503
+
+    data_desc, instruction = section_map[section]
+
+    prompt = f"""以下是当前招聘数据库中通过爬虫真实采集并建模后的数据。请严格据此给出分析。
+
+【数据】
+{data_desc}
+
+【要求】
+{instruction}
+
+重要约束:
+- 数据结论必须来自上述数据的具体数字,限定在"本数据库采集的岗位中"。
+- 不得编造具体数字。数据不足时诚实说明"暂无相关数据"。
+- 可适当补充普适性求职建议(非数据库内容),但必须用 **【普适性建议】** 前缀标注,与数据结论明确区分。"""
+
+    api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
+    qwen_key = getattr(config, 'QWEN_API_KEY', '')
+    if not api_key and not qwen_key:
+        return _json.dumps({'error': 'DEEPSEEK_API_KEY 和 QWEN_API_KEY 均未配置,无法生成分析'}), 503
+
+    try:
+        from agent.agent_core import call_llm_with_fallback
+        messages = [
+            {'role': 'system', 'content': '你是招聘数据分析与建模解读助手。数据结论必须来自提供的真实采集数据;可补充普适性建议但必须用**【普适性建议】**标注;数据不足时诚实说明;不编造具体数字。输出纯文本中文。'},
+            {'role': 'user', 'content': prompt},
+        ]
+        analysis, _provider = call_llm_with_fallback(messages, deepseek_key=api_key)
+        _ml_analysis_cache[section] = (time.time(), analysis)
+        _logger.info('/ml AI 分析 provider=%s section=%s', _provider, section)
+        return analysis
+    except requests.exceptions.HTTPError as e:
+        status = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
+        msg = 'AI 服务暂时繁忙,请稍后再试' if status == 429 else f'AI 分析生成失败: {str(e)}'
+        return _json.dumps({'error': msg}), 503
+    except Exception as e:
+        return _json.dumps({'error': f'AI 分析生成失败: {str(e)}'}), 500
 
 
 @app.route('/ml')
 def ml_page():
-    mc = _model_get()
-    metrics = _safe_model_metrics(mc)
+    # 支持清除查询结果: /ml?clear_ml=1
+    if request.args.get('clear_ml') == '1':
+        session.pop('ml_state', None)
+        return redirect(url_for('ml_page'))
+
     clustering = _get_clustering()
     total_jobs = clustering.get('total_jobs', 0) if clustering else 0
 
-    return render_template(
-        'ml.html',
+    # 懒加载四个新功能的数据
+    heatmap = _get_skill_heatmap() if clustering else {'error': '请先采集数据'}
+    similarity = _get_similarity() if clustering else {'error': '请先采集数据'}
+    salary_curve = _get_salary_curve() if clustering else {'error': '请先采集数据'}
+    edu_premium = _get_edu_premium() if clustering else {'error': '请先采集数据'}
+
+    # 尝试从 session 恢复上次查询结果
+    ml_state = session.get('ml_state')
+
+    base_context = dict(
         clustering=clustering,
         total_jobs=total_jobs,
-        model_ready=mc is not None,
-        **metrics
+        heatmap=heatmap,
+        similarity=similarity,
+        salary_curve=salary_curve,
+        edu_premium=edu_premium,
     )
 
+    if ml_state:
+        base_context.update(
+            lookup_result=ml_state.get('lookup_result'),
+            lookup_cluster_ref=ml_state.get('lookup_cluster_ref'),
+            restored=True,
+        )
 
-@app.route('/predict', methods=['POST'])
-def predict():
+    return render_template('ml.html', **base_context)
+
+
+@app.route('/salary-lookup', methods=['POST'])
+def salary_lookup():
     import modeling.salary_predict as salary_predict
 
     city = request.form.get('city', '').strip()
     category = request.form.get('category', '').strip()
-    edu = request.form.get('edu', '').strip() or '不限'
-    exper = request.form.get('exper', '').strip() or '经验不限'
+    edu = request.form.get('edu', '').strip() or ''
+    exper = request.form.get('exper', '').strip() or ''
 
-    predict_error = None
-    predict_result = None
+    result = salary_predict.lookup_salary_range(city, category, edu, exper)
 
-    mc = _model_get()
-    if mc is None:
-        predict_error = '薪资预测模型尚未训练,请先采集数据。'
-    elif not city or not category:
-        predict_error = '请输入城市和职位类别'
-    else:
-        pred, matched_edu, matched_exper, warns = salary_predict.predict_salary_safe(
-            mc['model'], city, category, edu, exper,
-            mc['valid_edu'], mc['valid_exper'],
-            mc.get('valid_city'), mc.get('valid_category'),
-        )
-        predict_result = {
-            'city': city, 'category': category,
-            'edu': matched_edu, 'exper': matched_exper, 'pred': pred,
-            'warnings': warns,
-        }
-
-    mc = _model_get()
-    metrics = _safe_model_metrics(mc)
     clustering = _get_clustering()
     total_jobs = clustering.get('total_jobs', 0) if clustering else 0
 
-    predict_cluster_ref = None
-    if predict_result and clustering:
-        category = predict_result['category']
+    # 找到最接近的聚类簇作为参考
+    lookup_cluster_ref = None
+    if result.get('count', 0) > 0 and clustering:
         best_cluster = None
         best_score = 0
         for c in clustering.get('clusters', []):
             score = 0
-            if category in c.get('auto_label', ''):
+            if category and category in c.get('auto_label', ''):
                 score += 3
             for kw in c.get('top_keywords', []):
-                if category in kw or kw in category:
+                if category and (category in kw or kw in category):
                     score += 2
             if score > best_score:
                 best_score = score
                 best_cluster = c
         if best_cluster:
-            predict_cluster_ref = {
+            lookup_cluster_ref = {
                 'label': best_cluster['auto_label'],
                 'avg_salary': best_cluster.get('avg_salary', 0),
                 'count': best_cluster.get('count', 0),
             }
 
+    # 保存状态到 session
+    session['ml_state'] = {
+        'lookup_result': result,
+        'lookup_cluster_ref': lookup_cluster_ref,
+    }
+
+    # 懒加载四个新功能的数据
+    heatmap = _get_skill_heatmap() if clustering else {'error': '请先采集数据'}
+    similarity = _get_similarity() if clustering else {'error': '请先采集数据'}
+    salary_curve_data = _get_salary_curve() if clustering else {'error': '请先采集数据'}
+    edu_premium_data = _get_edu_premium() if clustering else {'error': '请先采集数据'}
+
     return render_template(
         'ml.html',
         clustering=clustering,
         total_jobs=total_jobs,
-        model_ready=mc is not None,
-        **metrics,
-        predict_error=predict_error,
-        predict_result=predict_result,
-        predict_cluster_ref=predict_cluster_ref,
+        lookup_result=result,
+        lookup_cluster_ref=lookup_cluster_ref,
+        heatmap=heatmap,
+        similarity=similarity,
+        salary_curve=salary_curve_data,
+        edu_premium=edu_premium_data,
+    )
+
+
+@app.route('/ml/cluster/<int:cluster_id>')
+def cluster_jobs(cluster_id):
+    """点击 /ml 页面的方向卡片后，展示该簇包含的所有岗位列表。"""
+    clustering = _get_clustering()
+    if not clustering:
+        abort(404)
+
+    cluster = None
+    for c in clustering.get('clusters', []):
+        if c.get('cluster_id') == cluster_id:
+            cluster = c
+            break
+    if not cluster:
+        abort(404)
+
+    job_ids = cluster.get('job_ids', [])
+    if not job_ids:
+        rows = []
+    else:
+        db = sqlite3.connect(config.DB_PATH)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        placeholders = ','.join('?' * len(job_ids))
+        cursor.execute(
+            f"SELECT id, post, company, address, salary_min, salary_max, dateT "
+            f"FROM data WHERE id IN ({placeholders}) ORDER BY id DESC",
+            job_ids,
+        )
+
+        rows = cursor.fetchall()
+        db.close()
+
+    return render_template(
+        'cluster_jobs.html',
+        cluster=cluster,
+        rows=rows,
     )
 
 
@@ -561,13 +910,21 @@ def collect():
     用户指定关键词+城市,触发一次真实的51job实时采集(Playwright+stealth),
     采集结果写入data表,供后续所有分析(图表/聚类/预测/Agent)直接使用。
 
-    表单本身在首页(input.html),这里只处理提交;GET请求(比如直接访问
-    这个URL)重定向回首页,避免出现两份重复的输入框。
+    表单本身在首页(input.html),这里只处理提交;GET请求优先从 session 恢复
+    上次采集结果（若有），否则重定向回首页。
 
     注意: 这是同步阻塞调用,一次采集通常耗时5~10秒(过WAF)+每页约0.3秒,
     城市和页数设了上限,避免单次请求耗时过长。
     """
     if request.method != 'POST':
+        # 支持清除: /collect?clear_collect=1
+        if request.args.get('clear_collect') == '1':
+            session.pop('collect_state', None)
+            return redirect('/')
+        # 尝试从 session 恢复上次采集结果
+        collect_state = session.get('collect_state')
+        if collect_state:
+            return render_template('collect.html', restored=True, **collect_state)
         return redirect('/')
 
     # --- 采集口令校验 --------------------------------------------------------
@@ -646,26 +1003,32 @@ def collect():
         )
     db.commit()
 
-    # 数据变了,聚类和薪资预测模型也要跟着重新算一遍
-    # 否则 /chart 和 /ml 页面会显示基于旧数据的结果
+    # 数据变了，图表 AI 缓存 + 模型缓存都要失效
+    _invalidate_chart_analysis_cache()
+    _invalidate_modeling_caches()
+
+    # 数据变了,聚类模型也要跟着重新算一遍
     global _clustering_cache
     import joblib as _joblib
     import modeling.job_clustering as job_clustering
-    import modeling.salary_predict as salary_predict
-    import modeling.cache as _mcache
     _cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
     _cluster_path = os.path.join(_cache_dir, 'clustering_result.joblib')
-    _salary_path = os.path.join(_cache_dir, 'salary_model.joblib')
     try:
-        _mcache.invalidate()  # 清空旧模型缓存,强制重新训练
         _clustering_cache = job_clustering.run_clustering()
         _joblib.dump(_clustering_cache, _cluster_path)
-        salary_result = salary_predict.train_and_evaluate()
-        _model_update(salary_result)
-        _joblib.dump(salary_result, _salary_path)
-        _logger.info('采集后模型已重新训练并持久化')
+        _logger.info('采集后聚类模型已重新训练并持久化 (k=%d)', _clustering_cache['k'])
     except Exception as e:
-        _logger.warning('采集后模型重算失败: %s', e)
+        _logger.warning('采集后聚类模型重算失败: %s', e)
+
+    # 保存采集结果到 session，跨页面导航后可恢复
+    session['collect_state'] = {
+        'success_count': success,
+        'total_count': len(jobs),
+        'keyword': keyword,
+        'city': city_raw,
+        'pages_per_city': pages,
+        'pages_collected': pages_collected,
+    }
 
     return render_template(
         'collect.html', success_count=success, total_count=len(jobs),
@@ -677,8 +1040,67 @@ def collect():
 @app.route('/advice', methods=['GET', 'POST'])
 def advice():
     if request.method != 'POST':
-        # GET: 通过 ?tool= 参数指定默认打开的标签页
+        # GET: 支持清除操作
         tool = request.args.get('tool', 'agent')
+
+        # 清除 Agent 对话: /advice?clear_agent=1
+        if request.args.get('clear_agent') == '1':
+            chat_id = session.pop('chat_id', None)
+            if chat_id:
+                _conversations.pop(chat_id, None)
+            return redirect(url_for('advice'))
+
+        # 清除对比结果: /advice?clear_compare=1
+        if request.args.get('clear_compare') == '1':
+            session.pop('compare_state', None)
+            return redirect(url_for('advice'))
+
+        # 清除匹配结果: /advice?clear_match=1
+        if request.args.get('clear_match') == '1':
+            session.pop('match_state', None)
+            return redirect(url_for('advice'))
+        # 清除简历审查结果: /advice?clear_review=1
+        if request.args.get('clear_review') == '1':
+            session.pop('review_state', None)
+            return redirect(url_for('advice'))
+
+        # 尝试从 session 恢复上一次对话状态
+        chat_id = session.get('chat_id')
+        agent_state = _conversations.get(chat_id) if chat_id else None
+        compare_state = session.get('compare_state')
+        match_state = session.get('match_state')
+
+        if agent_state:
+            return render_template('advice.html', active_tab=tool,
+                                   question=agent_state.get('question'),
+                                   answer=agent_state.get('answer'),
+                                   trace=agent_state.get('trace'),
+                                   critique=agent_state.get('critique', ''),
+                                   restored_agent=True)
+        if compare_state:
+            return render_template('advice.html', active_tab='compare',
+                                   compare_result=compare_state.get('result'),
+                                   compare_a=compare_state.get('a'),
+                                   compare_b=compare_state.get('b'),
+                                   restored_compare=True)
+        if match_state:
+            return render_template('advice.html', active_tab='match',
+                                   match_result=match_state.get('result'),
+                                   match_skills=match_state.get('skills'),
+                                   match_city=match_state.get('city'),
+                                   match_edu=match_state.get('edu'),
+                                   match_exper=match_state.get('exper'),
+                                   restored_match=True)
+
+        review_state = session.get('review_state')
+        if review_state:
+            return render_template('advice.html', active_tab='review',
+                                   review_result=review_state.get('result'),
+                                   review_text=review_state.get('text'),
+                                   review_city=review_state.get('city'),
+                                   review_category=review_state.get('category'),
+                                   restored_review=True)
+
         return render_template('advice.html', active_tab=tool)
 
     tool = request.form.get('tool', 'agent')
@@ -689,33 +1111,127 @@ def advice():
         if not question:
             return render_template('advice.html', error='请输入你的问题', active_tab='agent')
         api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
-        if not api_key:
-            return render_template('advice.html', error='请先在config.py里设置DEEPSEEK_API_KEY',
+        qwen_key = getattr(config, 'QWEN_API_KEY', '')
+        if not api_key and not qwen_key:
+            return render_template('advice.html', error='请先在.env配置DEEPSEEK_API_KEY或QWEN_API_KEY',
                                    question=question, active_tab='agent')
         try:
             from agent.agent_core import run_agent
-            answer, trace = run_agent(question, api_key, max_steps=5, verbose=False)
+            answer, data_context = run_agent(question)
         except Exception:
             return render_template('advice.html', error='Agent调用失败,请稍后重试',
                                    question=question, active_tab='agent')
-        return render_template('advice.html', question=question, answer=answer, trace=trace, active_tab='agent')
 
-    # --- 城市/类别对比工具 ---
+        # 保存 Agent 对话到服务端会话存储
+        chat_id = str(uuid.uuid4())
+        _conversations[chat_id] = {'question': question, 'answer': answer, 'data_context': data_context}
+        session['chat_id'] = chat_id
+        # 清理旧对比/技能结果（新对话后可能过时）
+        session.pop('compare_state', None)
+        session.pop('match_state', None)
+        session.pop('review_state', None)
+
+        return render_template('advice.html', question=question, answer=answer,
+                               data_context=data_context, active_tab='agent')
+
+    # --- 城市对比工具 ---
     if tool == 'compare':
-        dim_type = request.form.get('dim_type', 'city').strip()
         a = request.form.get('a', '').strip()
         b = request.form.get('b', '').strip()
         if not a or not b:
-            return render_template('advice.html', compare_error='请输入两个要对比的城市或职位类别',
-                                   compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+            return render_template('advice.html', compare_error='请输入两个要对比的城市',
+                                   compare_a=a, compare_b=b, active_tab='compare')
         try:
             from agent.agent_tools import compare_jobs
-            compare_result = compare_jobs(dim_type, a, b)
+            compare_result = compare_jobs('city', a, b)
         except Exception:
             return render_template('advice.html', compare_error='对比查询失败,请稍后重试',
-                                   compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+                                   compare_a=a, compare_b=b, active_tab='compare')
+
+        # 保存对比结果到 session
+        session['compare_state'] = {'result': compare_result, 'a': a, 'b': b}
+
         return render_template('advice.html', compare_result=compare_result,
-                               compare_dim_type=dim_type, compare_a=a, compare_b=b, active_tab='compare')
+                               compare_a=a, compare_b=b, active_tab='compare')
+
+    # --- 岗位匹配推荐工具 ---
+    if tool == 'match':
+        skills = request.form.get('skills', '').strip()
+        city = request.form.get('city', '').strip()
+        edu = request.form.get('edu', '').strip()
+        exper = request.form.get('exper', '').strip()
+        if not skills:
+            return render_template('advice.html', match_error='请至少输入一个技能关键词',
+                                   match_skills=skills, match_city=city,
+                                   match_edu=edu, match_exper=exper, active_tab='match')
+        try:
+            from agent.agent_tools import match_jobs
+            match_result = match_jobs(skills=skills, city=city, edu=edu, exper=exper)
+        except Exception:
+            return render_template('advice.html', match_error='匹配查询失败,请稍后重试',
+                                   match_skills=skills, match_city=city,
+                                   match_edu=edu, match_exper=exper, active_tab='match')
+
+        # 保存匹配结果到 session
+        session['match_state'] = {
+            'result': match_result,
+            'skills': skills,
+            'city': city,
+            'edu': edu,
+            'exper': exper,
+        }
+
+        return render_template('advice.html', match_result=match_result,
+                               match_skills=skills, match_city=city,
+                               match_edu=edu, match_exper=exper, active_tab='match')
+
+    # --- 简历审查与优化工具 ---
+    if tool == 'review':
+        resume_text = request.form.get('resume_text', '').strip()
+        target_city = request.form.get('target_city', '').strip()
+        target_category = request.form.get('target_category', '').strip()
+
+        # 如果上传了文件，优先从文件提取文本
+        uploaded_name = ''
+        if 'resume_file' in request.files:
+            file = request.files['resume_file']
+            if file.filename:
+                uploaded_name = file.filename
+                try:
+                    from agent.resume_parser import extract_text
+                    file_bytes = file.read()
+                    extracted = extract_text(file_bytes, file.filename)
+                    if extracted:
+                        resume_text = extracted.strip()
+                except Exception:
+                    _logger.warning('文件解析失败, 回退到手动输入')
+
+        if not resume_text:
+            hint = f'请粘贴简历文本或上传PDF/Word文件'
+            if uploaded_name:
+                hint = f'无法从 "{uploaded_name}" 提取文本(请确认文件非空或尝试粘贴文本)'
+            return render_template('advice.html', review_error=hint,
+                                   review_text='', review_city=target_city,
+                                   review_category=target_category, active_tab='review')
+        try:
+            from agent.agent_tools import review_resume
+            review_result = review_resume(resume_text, target_city=target_city,
+                                          target_category=target_category)
+        except Exception:
+            return render_template('advice.html', review_error='简历分析失败,请稍后重试',
+                                   review_text=resume_text, review_city=target_city,
+                                   review_category=target_category, active_tab='review')
+
+        session['review_state'] = {
+            'result': review_result,
+            'text': resume_text,
+            'city': target_city,
+            'category': target_category,
+        }
+
+        return render_template('advice.html', review_result=review_result,
+                               review_text=resume_text, review_city=target_city,
+                               review_category=target_category, active_tab='review')
 
     # 未知工具类型，回退到 Agent
     return render_template('advice.html', error='未知工具类型', active_tab='agent')

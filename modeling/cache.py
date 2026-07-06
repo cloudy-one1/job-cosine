@@ -3,23 +3,31 @@
 
 app.py 启动/重采集后更新;
 agent_tools 和 app.py 的路由共享同一份引用,消除重复训练和全局变量不一致。
+
+线程安全：所有 get/update/invalidate 操作均受 threading.Lock 保护，
+避免 Flask 多线程模式下并发访问导致的数据不一致。
 """
+import threading
+
 _model_result = None
+_lock = threading.Lock()
 
 
 def get():
     """返回当前缓存的模型结果;如尚未训练(直接运行工具模块的场景),按需训练。"""
     global _model_result
-    if _model_result is None:
-        from modeling.salary_predict import train_and_evaluate
-        _model_result = train_and_evaluate()
-    return _model_result
+    with _lock:
+        if _model_result is None:
+            from modeling.salary_predict import train_and_evaluate
+            _model_result = train_and_evaluate()
+        return _model_result
 
 
 def update(result):
     """用外部训练好的结果更新缓存。"""
     global _model_result
-    _model_result = result
+    with _lock:
+        _model_result = result
 
 
 def invalidate():
@@ -28,4 +36,5 @@ def invalidate():
     用于数据采集后强制重新训练模型,确保模型反映最新数据。
     """
     global _model_result
-    _model_result = None
+    with _lock:
+        _model_result = None

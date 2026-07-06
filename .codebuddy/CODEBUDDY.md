@@ -41,7 +41,7 @@ project1/
 ├── CODEBUDDY.md             ← 你现在读的这个（唯一真相来源）
 ├── README.md                ← 给人看的文档（GitHub 展示）
 ├── app.py                   ← Flask 入口；路由 + CSRF + 限流 + 启动逻辑
-├── config.py                ← 全局常量导出：DB_PATH / DB_URI / DEEPSEEK_API_KEY / COLLECT_TOKEN
+├── config.py                ← 全局常量导出：DB_PATH / DB_URI / DEEPSEEK_API_KEY / QWEN_API_KEY / COLLECT_TOKEN
 ├── requirements.txt         ← Python 依赖
 ├── .env.example             ← 环境变量模板（复制为 .env 后填真实值，.env 已被 gitignore）
 ├── .debug                   ← （可选）存在即开启 Flask Debug 模式，优先级覆盖 FLASK_DEBUG 环境变量
@@ -68,7 +68,7 @@ project1/
 │   └── cache.py               ← 模型结果缓存（避免每次请求重训，sklearn/jieba 懒加载提速启动）
 │
 ├── agent/                   ← 第 4 层：AI Agent 求职建议
-│   ├── agent_core.py          ← Agent 主循环 + 工具调用调度（参数白名单用 inspect.signature）
+│   ├── agent_core.py          ← Agent 主循环 + 工具调用调度 + DeepSeek/千问双模型 fallback
 │   └── agent_tools.py         ← Agent 可用的工具函数（查数据/查模型/查词频等）
 │
 ├── templates/               ← Flask Jinja2 模板（所有页面）
@@ -77,6 +77,7 @@ project1/
 │   ├── data.html              ← 数据总览页（分页展示采集到的职位列表）
 │   ├── h.html                 ← 分析图表页（ECharts：饼图/柱状图/地图）
 │   ├── ml.html                ← 建模结果页（聚类簇 + 薪资预测表单+结果）
+│   ├── cluster_jobs.html      ← 方向岗位明细列表页（点击 /ml 簇卡片进入）
 │   ├── advice.html            ← Agent 求职建议页（带 CSRF token 提交画像）
 │   └── collect.html           ← 数据采集管理页（可选 COLLECT_TOKEN 口令校验）
 │
@@ -116,7 +117,10 @@ project1/
 ```python
 DB_PATH          # SQLite data.db 的绝对路径（= 项目根目录）
 DB_URI           # SQLAlchemy 格式：sqlite:/// + DB_PATH
-DEEPSEEK_API_KEY # Agent 用的密钥（.env > 系统环境变量 > 空串）
+DEEPSEEK_API_KEY # Agent 首选密钥（.env > 系统环境变量 > 空串）
+QWEN_API_KEY     # 千问 fallback 密钥（DeepSeek 不可用时自动切换）
+QWEN_API_URL     # 千问 API 地址（默认 dashscope 兼容接口）
+QWEN_MODEL       # 千问模型名（默认 qwen-plus）
 COLLECT_TOKEN    # /collect 采集路由保护口令，空则不启用
 ```
 
@@ -264,7 +268,7 @@ git push                                 # develop 直接推
 1. **禁止直接在 main 分支改代码**。任何修改前先 `git status` 确认当前在 develop，不在就先 checkout。
 2. **新增 POST 路由/表单必须加 CSRF**。Flask-WTF，模板写 `{{ form.hidden_tag() }}`。
 3. **密钥/Token 绝对不能写进任何代码文件**。一律走 `.env` + `config.py` 常量。
-4. **改完 app.py / 安全逻辑必须跑 `pytest tests/test_app_routes.py -v`**。改分析/模型跑对应测试。全部通过再提交。
+4. **测试按影响范围跑，不要无脑全量 180+**。原则：改 CSS/HTML 文案 → 只跑 `test_app_routes.py`（24 个路由冒烟）；改 `app.py` 逻辑 → 跑路由测试 + 相关模块测试；改分析/模型核心逻辑 → 跑对应测试文件。全量 `pytest tests/` 只在重大重构后或准备提交前跑一次。
 5. **敏感操作前先问**：删文件、合并 main、强制推送（`--force`）、数据库 DROP 表，必须先征得用户明确同意。
 6. **提交消息按 `type: description` 中文描述**。Commit 前先 `git diff --staged` 确认没有把 `.env` / `data.db` / `.qoder/` 加进去。
 7. **遇到图表/模板变更不生效**，优先提示用户查端口占用（坑 3），不要先怀疑代码。
@@ -283,6 +287,15 @@ git push                                 # develop 直接推
 
 ## 10. 最近变更记录（Changelog 摘要）
 
+- 2026-07-06 · `feat: advice 第三个 tab 从「技能需求分析」替换为「岗位匹配推荐」— 技能/学历/经验/城市四维度透明权重评分`
+- 2026-07-06 · `feat: /ml 页面方向卡片支持点击查看该方向岗位明细列表`
+- 2026-07-06 · `test: 新增路由冒烟测试(8条) + 模块级缓存变量集中化，全量 184 passed`
+- 2026-07-06 · `fix: 薪资预测页面提交后自动滚到结果区域，不再跳回顶部`
+- 2026-07-06 · `chore: 缓存变量集中到模块顶部统一区块 + CODEBUDDY.md 关键位置同步`
+- 2026-07-06 · `feat: advice 页面暖色调重设计（药丸导航+卡片布局+渐变Hero区）`
+- 2026-07-06 · `feat: LLM 双模型 fallback（DeepSeek 不可用时自动切通义千问），Agent + 图表解读全链路覆盖`
+- 2026-07-06 · `perf: 图表页 AI 分析预取 + 双缓存（服务端 5 分钟缓存 + 前端内存缓存），点击 AI 秒开`
+- 2026-07-06 · `feat: Agent 工具增强 — query_jobs 标题+描述联合搜索 + skill_demand_analysis 新工具 + compare_jobs 技能差异 + advice 3-tab`
 - 2026-07-05 · `refactor: advice 页面移除技能关键词提取 tab（与图表页词云功能重叠）`
 - 2026-07-05 · `feat: 数据展示页岗位悬停放大特效 + 岗位详情按钮交互 + 精确检索替代模糊匹配`
 - 2026-07-05 · `chore: ARCHITECTURE.md 并入 CODEBUDDY.md，统一为单一真相来源`
@@ -318,27 +331,47 @@ git push                                 # develop 直接推
 ### 11.3 已确认的设计决策
 
 - **Debug 模式**：默认 off（`.debug` 文件不存在时），**off 是正常状态，不是错误**
-- **图表**：`/chart` 每次请求实时跑 4 个统计函数（无缓存），设计如此
+- **图表**：`/chart` 有 5 分钟数据缓存（`_chart_data_cache`），避免每次请求重复跑 7 个统计函数
 - **ML 加载**：`/ml` 首次访问触发 KMeans + 薪资模型训练（懒加载），用户接受演示延迟
 - **数据量**：演示时几十条足够，项目能力轻松 1000+
 
 ### 11.4 关键代码位置
 
-```
-app.py:265-275    → /list 搜索逻辑（LOWER() 精确匹配，忽略大小写）
-app.py:482-483    → Debug 开关逻辑（.debug 文件）
-app.py:190-203    → 模型懒加载（_get_clustering）
-app.py:254-264    → /chart 路由（每次实时计算）
-app.py:281-294    → /ml 路由（首次触发训练）
-app.py:377-381    → 采集页数上限（max=5）
-app.py:500        → app.run() 最终配置
-app.py:515-531    → 采集后模型重训 + cache.invalidate()
-config.py:43      → DEEPSEEK_API_KEY
-config.py:47      → COLLECT_TOKEN
-modeling/cache.py → 模型缓存单例（get/update/invalidate）
+```python
+app.py:100-107     → 模块级缓存变量集中区块（图表数据/AI 分析/聚类共 5 个）
+app.py:246-252     → 图表/数据缓存失效函数（_invalidate_chart_analysis_cache）
+app.py:254-280     → 图表数据计算（_compute_chart_data，带 5 分钟缓存）
+app.py:287-296     → 聚类懒加载获取（_get_clustering，首次触发训练）
+app.py:299-304     → / 首页路由
+app.py:326-369     → /list 搜索逻辑（LOWER() 精确匹配，忽略大小写）
+app.py:369-400     → /job/<id> 岗位详情页
+app.py:402-410     → /chart 图表页路由（使用 _compute_chart_data 缓存）
+app.py:412-537     → /chart/analyze 路由（服务端 5 分钟 AI 分析缓存）
+app.py:538-572     → /ml 建模页路由（首次触发训练）
+app.py:574-647     → /predict 薪资预测 POST 路由
+app.py:649-685     → /ml/cluster/<id> 方向岗位明细列表路由
+app.py:687-775     → /collect 数据采集路由（含 5 页上限 + 模型重训）
+app.py:776-808     → 采集成功后的缓存/模型失效逻辑
+app.py:828-984     → /advice Agent 求职建议路由（POST 含 loading 遮罩）
+app.py:986          → app.run() 启动配置 + Debug 开关逻辑
+config.py:43       → DEEPSEEK_API_KEY
+config.py:47-49    → QWEN_API_KEY / QWEN_API_URL / QWEN_MODEL
+config.py:53       → COLLECT_TOKEN
+modeling/cache.py  → 模型缓存单例（get/update/invalidate）
+modeling/job_clustering.py → run_clustering()（含 job_ids 字段，支持方向卡片跳转）
 analysis/jobtitle.py → classify() 跨行业 RULES（5层优先级:具体角色→级别→方向→职能→兜底）
+agent/agent_tools.py → query_jobs(联合搜索)、match_jobs(四维匹配推荐)、skill_demand_analysis、compare_jobs(技能差异)
+agent/agent_core.py:59-78    → call_deepseek (DeepSeek API 调用 + 指数退避)
+agent/agent_core.py:81-106   → call_qwen + call_llm_with_fallback (双模型 fallback)
+agent/agent_tools.py:87-208  → match_jobs 四维度透明评分（技能40%+城市20%+学历20%+经验15%+薪资5%）
+templates/h.html:830-910    → 前端 AI 预取（prefetchAllAI）与点击秒开缓存（showAI, 2s 最小延迟）
+templates/advice.html:243-260 → Agent 表单提交 loading 遮罩
+templates/advice.html:69-76   → advice 3-tab 切换（Agent/对比/岗位匹配推荐）
+templates/ml.html:93          → 薪资预测标题锚点（predict-section）
+templates/ml.html:248-256     → 薪资预测结果自动滚动 JS
+templates/cluster_jobs.html   → 方向岗位明细列表页（点击 /ml 卡片进入）
 ```
 
 ---
 
-> 最后更新: 2026-07-05
+> 最后更新: 2026-07-06 · 岗位匹配推荐 tab 替换技能需求分析 + 四维度透明评分

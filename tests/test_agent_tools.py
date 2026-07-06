@@ -21,23 +21,24 @@ def temp_db(monkeypatch):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS data (
             post TEXT, address TEXT, salary_min REAL, salary_max REAL,
-            edu TEXT, exper TEXT, content TEXT DEFAULT ''
+            edu TEXT, exper TEXT, content TEXT DEFAULT '', job_url TEXT DEFAULT ''
         )
     """)
     test_data = [
-        ('Python后端开发', '北京-海淀区', 15, 25, '本科', '3-5年'),
-        ('Java后端开发', '北京-朝阳区', 12, 20, '本科', '1-3年'),
-        ('Python后端开发', '上海-浦东新区', 18, 30, '硕士', '3-5年'),
-        ('前端开发工程师', '上海-徐汇区', 10, 18, '大专', '1-3年'),
-        ('数据爬虫工程师', '北京-海淀区', 12, 22, '本科', '1-3年'),
-        ('Python爬虫工程师', '深圳-南山区', 15, 25, '本科', '3-5年'),
-        ('Java后端开发', '上海-浦东新区', 15, 25, '本科', '3-5年'),
-        ('运维工程师', '深圳-福田区', 8, 15, '大专', '经验不限'),
-        ('测试工程师', '上海-静安区', 10, 18, '本科', '1-3年'),
-        ('Web前端开发', '北京-海淀区', 12, 22, '本科', '3-5年'),
+        ('Python后端开发', '北京-海淀区', 15, 25, '本科', '3-5年', 'Python Django Flask MySQL'),
+        ('Java后端开发', '北京-朝阳区', 12, 20, '本科', '1-3年', 'Java Spring Boot Docker Redis'),
+        ('Python后端开发', '上海-浦东新区', 18, 30, '硕士', '3-5年', 'Python FastAPI Docker Kubernetes AWS'),
+        ('前端开发工程师', '上海-徐汇区', 10, 18, '大专', '1-3年', 'React Vue TypeScript Webpack'),
+        ('数据爬虫工程师', '北京-海淀区', 12, 22, '本科', '1-3年', 'Python Scrapy Scrapyd MongoDB Docker'),
+        ('Python爬虫工程师', '深圳-南山区', 15, 25, '本科', '3-5年', 'Python Scrapy Redis Docker K8s'),
+        ('Java后端开发', '上海-浦东新区', 15, 25, '本科', '3-5年', 'Java Spring Cloud Docker K8s MySQL'),
+        ('运维工程师', '深圳-福田区', 8, 15, '大专', '经验不限', 'Linux Docker Kubernetes Jenkins Ansible'),
+        ('测试工程师', '上海-静安区', 10, 18, '本科', '1-3年', 'Selenium Python 自动化测试 接口测试'),
+        ('Web前端开发', '北京-海淀区', 12, 22, '本科', '3-5年', 'React Vue TypeScript CSS Node.js'),
     ]
     conn.executemany(
-        "INSERT INTO data (post, address, salary_min, salary_max, edu, exper) VALUES (?,?,?,?,?,?)",
+        "INSERT INTO data (post, address, salary_min, salary_max, edu, exper, content, job_url)"
+        " VALUES (?,?,?,?,?,?,?, 'https://jobs.51job.com/test/1.html')",
         test_data
     )
     conn.commit()
@@ -110,6 +111,91 @@ class TestCompareJobs:
         result = compare_jobs('city', '上海', '上海')
         assert result['a']['count'] == result['b']['count']
         assert result['a']['avg_salary_k'] == result['b']['avg_salary_k']
+
+    def test_city_compare_skill_diff(self, temp_db):
+        """城市对比应包含技能差异信息。"""
+        from agent.agent_tools import compare_jobs
+        result = compare_jobs('city', '北京', '上海')
+        if result['a']['count'] > 0 and result['b']['count'] > 0:
+            assert 'skill_diff' in result
+            assert isinstance(result['skill_diff'], dict)
+
+    def test_no_content_texts_leaked(self, temp_db):
+        """结果中不应泄露原始 content_texts。"""
+        from agent.agent_tools import compare_jobs
+        result = compare_jobs('city', '北京', '上海')
+        assert '_content_texts' not in result['a']
+        assert '_content_texts' not in result['b']
+
+
+# ============================================================
+# query_jobs — 标题+描述联合搜索
+# ============================================================
+class TestQueryJobs:
+    """验证 query_jobs 标题+描述联合搜索。"""
+
+    def test_title_match(self, temp_db):
+        """纯标题匹配仍正常工作。"""
+        from agent.agent_tools import query_jobs
+        result = query_jobs('爬虫')
+        assert result['count'] >= 2
+        assert result['keyword'] == '爬虫'
+        assert result['avg_salary_k'] > 0
+
+    def test_content_only_match(self, temp_db):
+        """JD 中有但标题没有的关键词也能命中。"""
+        from agent.agent_tools import query_jobs
+        result = query_jobs('Kubernetes')
+        assert result['count'] > 0
+        assert result['keyword'] == 'Kubernetes'
+
+    def test_no_match(self, temp_db):
+        """不存在的关键词返回 0。"""
+        from agent.agent_tools import query_jobs
+        result = query_jobs('COBOL')
+        assert result['count'] == 0
+        assert 'message' in result
+
+
+# ============================================================
+# skill_demand_analysis — 技能市场需求分析
+# ============================================================
+class TestSkillDemandAnalysis:
+    """验证 skill_demand_analysis 技能需求分析。"""
+
+    def test_existing_skill(self, temp_db):
+        """常见技能应返回统计信息。"""
+        from agent.agent_tools import skill_demand_analysis
+        result = skill_demand_analysis('Docker')
+        assert result['count'] > 0
+        assert result['skill'] == 'Docker'
+        assert result['median_salary_k'] > 0
+        assert isinstance(result['top_cities'], list)
+        assert isinstance(result['top_co_skills'], list)
+        assert isinstance(result['sample_jobs'], list)
+
+    def test_unknown_skill(self, temp_db):
+        """不存在的技能返回 0 计数和提示消息。"""
+        from agent.agent_tools import skill_demand_analysis
+        result = skill_demand_analysis('Fortran')
+        assert result['count'] == 0
+        assert 'message' in result
+
+    def test_empty_skill(self, temp_db):
+        """空技能名返回错误提示。"""
+        from agent.agent_tools import skill_demand_analysis
+        result = skill_demand_analysis('')
+        assert result['count'] == 0
+        assert 'message' in result
+
+    def test_skill_salary_consistency(self, temp_db):
+        """薪资统计应在合理范围内。"""
+        from agent.agent_tools import skill_demand_analysis
+        result = skill_demand_analysis('Python')
+        if result['count'] > 0:
+            assert result['avg_salary_k'] > 0
+            k = result['median_salary_k']
+            assert k <= result['avg_salary_k'] * 2
 
 
 if __name__ == '__main__':

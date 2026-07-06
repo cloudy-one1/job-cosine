@@ -42,6 +42,11 @@ DB_URI = 'sqlite:///' + DB_PATH
 # DeepSeek API Key,供 agent 使用;若未配置则为空字符串
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
+# 千问(通义千问)API,作为 DeepSeek 不可用时的 fallback
+QWEN_API_KEY = os.environ.get('QWEN_API_KEY', '')
+QWEN_API_URL = os.environ.get('QWEN_API_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
+QWEN_MODEL = os.environ.get('QWEN_MODEL', 'qwen-plus')
+
 # 采集口令: 若配置了非空值,则 /collect 路由要求 POST 表单中带 token 字段匹配,
 # 用于防止演示/教学场景下被人误点清空数据。不配置则不限制采集。
 COLLECT_TOKEN = os.environ.get('COLLECT_TOKEN', '')

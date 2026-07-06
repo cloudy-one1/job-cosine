@@ -1,7 +1,7 @@
 """
-词云生成模块 — 从职位标题中提取高频技术关键词。
+词云生成模块 — 从 51job 职位标签（keywords）中提取高频技术关键词。
 
-- 只从 post（职位标题）提取，避免 content（描述）中的福利/招聘噪音
+- 只从 keywords（51job jobTags）提取，这是平台官方标注的技能标签，比 post/content 更精准
 - 使用 echarts-wordcloud + maskImage 前端渲染中国地图形状
 - 停用词覆盖福利、学历、城市、招聘用语等
 - mask 图片自动从 GeoJSON 生成（首次运行时）
@@ -11,11 +11,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import re
 import logging
 from collections import Counter
-
-import jieba
 
 _logger = logging.getLogger('job_analysis')
 
@@ -348,12 +345,11 @@ def ensure_china_mask(mask_path=None):
 
 def generate_wordcloud_data(top_n=60):
     """
-    从数据库职位标题（post）和关键字标签（keywords）中提取关键词，统计词频。
+    仅从数据库 keywords（51job jobTags）中提取关键词，统计词频。
 
-    - post：职位标题，用 jieba 分词提取
     - keywords：来自 51job 的职位标签(jobTags)，直接按空格拆分，
-      不需要 jieba 分词，且每个标签有权重加成（1.5倍），因为
-      这些是平台官方标注的技能，比普通描述更精准。
+      这些是平台官方标注的技能标签，比 post/content 更精准。
+    - 不使用 post 或 content，避免职位标题/描述中的福利、招聘用语噪音。
 
     返回:
         dict: {
@@ -365,7 +361,7 @@ def generate_wordcloud_data(top_n=60):
     try:
         db = _connect_db()
         cursor = db.cursor()
-        cursor.execute("SELECT post, keywords FROM data")
+        cursor.execute("SELECT keywords FROM data")
         rows = cursor.fetchall()
         db.close()
     except Exception as e:
@@ -375,52 +371,26 @@ def generate_wordcloud_data(top_n=60):
     if not rows:
         return {'success': True, 'total_jobs': 0, 'words': []}
 
-    # 拼接职位标题
-    all_text = []
-    for r in rows:
-        post = (r[0] or '').strip()
-        if post:
-            all_text.append(post)
-    full_text = ' '.join(all_text)
-
-    # jieba 分词 (post)
-    words = jieba.lcut(full_text)
-
-    # 过滤 + 归一化 + 计数
+    # 从 keywords 直接拆分统计（51job jobTags 无需 jieba 分词）
     counter = Counter()
-    for w in words:
-        w = w.strip().lower()
-        # 跳过单字、纯数字、标点、空白、职位ID格式
-        if (len(w) < 2 or w.isdigit() or
-                re.match(r'^[\d\.\-\s/,;:!?()（）【】]+$', w) or
-                re.match(r'^j\d+$', w)):
-            continue
-        # 白名单优先（技术词不受停用词影响）
-        if w in WHITELIST:
-            w_upper = TERM_NORMALIZE.get(w, w)
-            counter[w_upper] += 1
-            continue
-        if w in STOP_WORDS:
-            continue
-        # 同义词归一化
-        w = TERM_NORMALIZE.get(w, w)
-        counter[w] += 1
-
-    # 补充 keywords（来自 51job jobTags，直接拆分，更高权重）
     for r in rows:
-        kw_str = (r[1] or '').strip()
+        kw_str = (r[0] or '').strip()
         if not kw_str:
             continue
         for w in kw_str.split():
             w = w.strip().lower()
             if len(w) < 2 or w.isdigit():
                 continue
-            # keywords 中的词已较干净，跳过空泛通用词即可
-            if w in STOP_WORDS and w not in WHITELIST:
+            # 白名单优先（技术词不受停用词影响）
+            if w in WHITELIST:
+                w_upper = TERM_NORMALIZE.get(w, w)
+                counter[w_upper] += 1
                 continue
+            if w in STOP_WORDS:
+                continue
+            # 同义词归一化
             w = TERM_NORMALIZE.get(w, w)
-            # 权重加成：平台标签比普通标题词更精准，记 2 次
-            counter[w] += 2
+            counter[w] += 1
 
     top_words = counter.most_common(top_n)
     return {

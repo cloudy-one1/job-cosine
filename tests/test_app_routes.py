@@ -148,21 +148,19 @@ class TestAppSecretAndCSRF:
         assert key is not None, "app.secret_key 未设置 (应为 Flask-WTF CSRF / session 前提)"
         assert len(key) > 0, "app.secret_key 为空字符串"
 
-    def test_csrf_blocks_post_predict_without_token(self):
-        """POST /predict 不带 CSRF token 返回 4xx (WTF_CSRF_CHECK_DEFAULT 生效)。"""
+    def test_csrf_blocks_post_salary_lookup_without_token(self):
+        """POST /salary-lookup 不带 CSRF token 返回 4xx (WTF_CSRF_CHECK_DEFAULT 生效)。"""
         from app import app
-        # 注意: 这个测试里不关闭 CSRF,所以单独构造 app context
         csrf_app = app
         csrf_app.config['TESTING'] = False
         csrf_app.config['WTF_CSRF_ENABLED'] = True
         with csrf_app.test_client() as c:
-            resp = c.post('/predict', data={
+            resp = c.post('/salary-lookup', data={
                 'city': '北京', 'category': '后端开发',
                 'edu': '本科', 'exper': '1-3年',
             })
-            # Flask-WTF CSRF 失败默认是 400
             assert resp.status_code in (400, 403), (
-                f"未带 CSRF token 的 POST /predict 返回 {resp.status_code},"
+                f"未带 CSRF token 的 POST /salary-lookup 返回 {resp.status_code},"
                 f"预期 400/403 (CSRF 保护应该生效)"
             )
 
@@ -210,3 +208,45 @@ class TestDebugHostFromEnv:
             "app.run() 中硬编码 host='0.0.0.0'。默认必须是 127.0.0.1,"
             "通过 FLASK_HOST 环境变量显式开启对外监听。"
         )
+
+
+# ============================================================
+# H-5: 路由冒烟测试（防止代码改动导致页面 500）
+# ============================================================
+class TestAllRoutesSmoke:
+    """验证所有主要 GET 路由返回 200，不改内容断言，只防引入 500。"""
+
+    def test_index_page_loads(self, client):
+        resp = client.get('/')
+        assert resp.status_code == 200
+
+    def test_list_page_loads(self, client):
+        resp = client.get('/list')
+        assert resp.status_code == 200
+
+    def test_chart_page_loads(self, client):
+        resp = client.get('/chart')
+        assert resp.status_code == 200
+
+    def test_ml_page_loads(self, client):
+        resp = client.get('/ml')
+        assert resp.status_code == 200
+
+    def test_advice_page_loads(self, client):
+        resp = client.get('/advice')
+        assert resp.status_code == 200
+
+    def test_collect_page_loads(self, client):
+        """采集页 GET 无 session 时重定向首页（302），不崩即可"""
+        resp = client.get('/collect')
+        assert resp.status_code in (200, 302)
+
+    def test_job_detail_page_for_missing_id(self, client):
+        """不存在的岗位 ID 渲染提示页不崩（200 非 500）"""
+        resp = client.get('/job/99999')
+        assert resp.status_code == 200
+
+    def test_cluster_jobs_page_not_500_when_empty(self, client):
+        """聚类岗位明细页在无数据时返回 404（不崩 500）"""
+        resp = client.get('/ml/cluster/0')
+        assert resp.status_code in (200, 404)

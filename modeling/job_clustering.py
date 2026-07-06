@@ -22,12 +22,17 @@ from sklearn.metrics import silhouette_score
 
 def get_posts():
     """返回 (id, post) 元组列表，id 用于关联薪资等字段。"""
-    db = sqlite3.connect(config.DB_PATH)
-    cursor = db.cursor()
-    cursor.execute("SELECT id, post FROM data")
-    rows = [(r[0], r[1]) for r in cursor.fetchall() if r[1]]
-    db.close()
-    return rows
+    try:
+        db = sqlite3.connect(config.DB_PATH)
+        cursor = db.cursor()
+        cursor.execute("SELECT id, post FROM data")
+        rows = [(r[0], r[1]) for r in cursor.fetchall() if r[1]]
+        db.close()
+        return rows
+    except sqlite3.Error as e:
+        import logging
+        logging.getLogger('modeling').warning('get_posts 读取数据库失败: %s', e)
+        return []
 
 
 def _cluster_salary_stats(posts_data, labels, k):
@@ -35,20 +40,30 @@ def _cluster_salary_stats(posts_data, labels, k):
     ids = [p[0] for p in posts_data]
     if not ids:
         return []
-    db = sqlite3.connect(config.DB_PATH)
-    db.row_factory = sqlite3.Row
-    cursor = db.cursor()
-    placeholders = ','.join(['?'] * len(ids))
-    cursor.execute(
-        f"SELECT id, salary_min, salary_max FROM data WHERE id IN ({placeholders})",
-        ids
-    )
-    db_salaries = {}
-    for row in cursor.fetchall():
-        sid, smin, smax = row['id'], row['salary_min'], row['salary_max']
-        if smin is not None and smax is not None and (smin + smax) > 0:
-            db_salaries[sid] = (smin + smax) / 2
-    db.close()
+    try:
+        db = sqlite3.connect(config.DB_PATH)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        placeholders = ','.join(['?'] * len(ids))
+        if not placeholders:
+            db.close()
+            return []
+        cursor.execute(
+            f"SELECT id, salary_min, salary_max FROM data WHERE id IN ({placeholders})",
+            ids
+        )
+        db_salaries = {}
+        for row in cursor.fetchall():
+            sid, smin, smax = row['id'], row['salary_min'], row['salary_max']
+            if smin is not None and smax is not None and (smin + smax) > 0:
+                db_salaries[sid] = (smin + smax) / 2
+        db.close()
+    except sqlite3.Error:
+        try:
+            db.close()
+        except Exception:
+            pass
+        return [{'avg_salary': 0, 'min_salary': 0, 'max_salary': 0, 'salary_count': 0} for _ in range(k)]
 
     stats = []
     for i in range(k):
@@ -177,6 +192,11 @@ def choose_best_k(X, k_range=None):
 def run_clustering(k=None):
     posts_data = get_posts()  # [(id, post), ...]
     titles = [p[1] for p in posts_data]
+
+    # 数据不足时返回空结果，避免 TF-IDF 向量化器崩溃
+    if not titles:
+        return {'k': 0, 'k_scores': None, 'clusters': [], 'total_jobs': 0}
+
     # 正常大小数据使用 min_df=2 过滤稀有词;当数据集很小时(例如非常新、非常窄范围的一次采集),
     # 放宽为 min_df=1,保证向量化器仍能输出有效结果。
     min_df = 2 if len(titles) >= 20 else 1
@@ -207,6 +227,7 @@ def run_clustering(k=None):
             'auto_label': '/'.join(top_keywords[:3]),
             'count': int(count),
             'top_keywords': top_keywords,
+            'job_ids': [int(posts_data[j][0]) for j in idx],
             **salary_stats[i],
         })
     result.sort(key=lambda x: -x['count'])

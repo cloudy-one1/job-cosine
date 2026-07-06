@@ -1,5 +1,5 @@
 """
-Flask /advice 路由单元测试 — 覆盖 2-tab 功能（综合Agent、城市对比）。
+Flask /advice 路由单元测试 — 覆盖 3-tab 功能（综合Agent、城市对比、岗位匹配）。
 
 使用 Flask test_client 发送请求，不启动真实服务器。
 测试态下关闭 CSRF，单独验证 CSRF token 存在性。
@@ -68,8 +68,8 @@ class TestAdviceGetTabs:
         resp = client.get('/advice')
         assert resp.status_code == 200
         text = resp.data.decode('utf-8')
-        assert '综合建议' in text
-        assert '城市/类别对比' in text
+        assert '普适性建议' in text
+        assert '城市对比' in text
         # 确认 CSRF token 存在于表单中
         assert 'csrf_token' in text
 
@@ -78,15 +78,15 @@ class TestAdviceGetTabs:
         resp = client.get('/advice?tool=compare')
         assert resp.status_code == 200
         text = resp.data.decode('utf-8')
-        assert '对比项 A' in text
-        assert '对比项 B' in text
+        assert '城市 A' in text
+        assert '城市 B' in text
 
     def test_get_invalid_tool_fallbacks_to_agent(self, client):
         """GET /advice?tool=unknown 回退到 Agent tab。"""
         resp = client.get('/advice?tool=unknown')
         assert resp.status_code == 200
         text = resp.data.decode('utf-8')
-        assert '综合建议' in text
+        assert '普适性建议' in text
 
 
 # ============================================================
@@ -105,6 +105,7 @@ class TestAdvicePostAgent:
         """有 question 但无 API Key 时返回提示。"""
         import config
         monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
         resp = client.post('/advice', data={
             'tool': 'agent',
             'question': 'Python 爬虫就业',
@@ -116,12 +117,17 @@ class TestAdvicePostAgent:
         """有 API Key 时调用 run_agent，mock 返回结果。"""
         import config
         monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', 'fake-test-key')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
 
-        # Mock run_agent 避免真实调用 LLM
+        # Mock run_agent 避免真实调用 LLM（新签名返回 (answer, data_context)）
         import agent.agent_core as agent_core
         monkeypatch.setattr(
             agent_core, 'run_agent',
-            lambda question, api_key, **kwargs: (f'关于 {question} 的测试回答', [])
+            lambda question, **kwargs: (
+                f'关于 {question} 的测试回答',
+                {'total_jobs': 5, 'city_distribution': [], 'category_distribution': [],
+                 'edu_distribution': [], 'exper_distribution': []}
+            )
         )
 
         resp = client.post('/advice', data={
@@ -134,16 +140,15 @@ class TestAdvicePostAgent:
 
 
 # ============================================================
-# POST 请求 — 城市/类别对比模式
+# POST 请求 — 城市对比模式
 # ============================================================
 class TestAdvicePostCompare:
-    """验证 POST /advice tool=compare 的对比功能。"""
+    """验证 POST /advice tool=compare 的城市对比功能。"""
 
     def test_post_compare_empty_input_shows_error(self, client):
-        """对比项为空时返回提示。"""
+        """城市为空时返回提示。"""
         resp = client.post('/advice', data={
             'tool': 'compare',
-            'dim_type': 'city',
             'a': '',
             'b': '',
         })
@@ -151,32 +156,18 @@ class TestAdvicePostCompare:
         assert '请输入两个要对比' in resp.data.decode('utf-8')
 
     def test_post_compare_city_with_data(self, client, temp_db):
-        """按城市对比，有数据时返回对比结果。"""
+        """有数据时返回城市对比结果。"""
         resp = client.post('/advice', data={
             'tool': 'compare',
-            'dim_type': 'city',
             'a': '北京',
             'b': '上海',
         })
         assert resp.status_code == 200
         text = resp.data.decode('utf-8')
-        assert '对比项 A' in text
-        assert '对比项 B' in text
+        assert '城市 A' in text
+        assert '城市 B' in text
         assert '北京' in text
         assert '上海' in text
-
-    def test_post_compare_category_with_data(self, client, temp_db):
-        """按类别对比，有数据时返回对比结果。"""
-        resp = client.post('/advice', data={
-            'tool': 'compare',
-            'dim_type': 'category',
-            'a': '后端开发',
-            'b': '数据分析',
-        })
-        assert resp.status_code == 200
-        text = resp.data.decode('utf-8')
-        assert '对比项 A' in text
-        assert '对比项 B' in text
 
 
 # ============================================================

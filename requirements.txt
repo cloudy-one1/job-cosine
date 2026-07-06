@@ -13,3 +13,5 @@ pytest>=7.0
 wordcloud>=1.9
 imageio>=2.31
 matplotlib>=3.7
+PyPDF2>=3.0
+python-docx>=1.0

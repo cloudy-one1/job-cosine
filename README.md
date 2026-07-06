@@ -12,8 +12,9 @@
 | 职位聚类 | 自动发现职位类别结构 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
 | 薪资预测 | 多维特征回归(线性+随机森林三模型对比) | Scikit-Learn + OneHotEncoder + RandomForest |
 | 技能词云 | 51job官方标签+标题分词 双源加权词频 | Jieba + 51job jobTags |
-| AI 图表解读 | DeepSeek 实时分析图表数据，点击即生成 | AJAX + agent_core.call_deepseek |
-| AI Agent | 自然语言交互式数据分析 + 城市对比 | 手写 ReAct 推理循环 + LLM 工具调用 |
+| 技能需求分析 | 任一技能的市场需求、薪资、城市分布、共现技能 | SQL 搜索 + 技能正则提取 |
+| AI 图表解读 | AI 实时分析图表数据，点击即生成 | AJAX + agent_core.call_llm_with_fallback (DeepSeek → 千问) |
+| AI Agent | 自然语言交互式数据分析 + 城市对比 | 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback |
 | Docker 部署 | 一键容器化运行 | Docker + docker-compose |
 
 > **容错设计**：空数据库首次启动不会崩溃，所有页面友好提示"请先采集数据"，无需预先准备任何数据。
@@ -61,7 +62,7 @@ project1/
 │   ├── jinyan.py                — 经验分布统计
 │   ├── region.py                — 城市分布统计 (含 extract_city 共享工具)
 │   ├── cross.py                 — 交叉分析 (薪资 vs 经验/学历)
-│   └── jobtitle.py              — 职位标题规则分类
+│   └── jobtitle.py              — 职位标题规则分类 (25行业 100+规则,数据驱动)
 │
 ├── modeling/                 # 模型层：机器学习
 │   ├── job_clustering.py        — KMeans 无监督聚类 (自动选择最佳 k)
@@ -69,20 +70,22 @@ project1/
 │   └── cache.py                 — 模型结果缓存 (单一真相来源)
 │
 ├── agent/                    # Agent 层：大模型对话
-│   ├── agent_core.py            — 手写 ReAct 推理循环 (Reason + Act)
-│   └── agent_tools.py           — 工具注册与查询函数 (7 个可调用工具)
+│   ├── agent_core.py            — 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback
+│   └── agent_tools.py           — 工具注册与查询函数 (8 个可调用工具,含技能分析)
 │
-├── templates/                # HTML 模板 (8 个页面, ECharts 可视化)
+├── templates/                # HTML 模板 (9 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
 │   ├── h.html (薪资/学历/经验/城市分布图+交叉分析+技能词云+AI图表解读)
-│   ├── ml.html (规则vs聚类对比图+城市分布图)
-│   ├── advice.html, collect.html
+│   ├── ml.html (规则vs聚类对比图+城市分布图+方向卡片岗位明细入口)
+│   ├── cluster_jobs.html (点击 ml.html 方向卡片后展示该簇岗位列表)
+│   ├── advice.html (暖色调重设计:药丸导航+卡片布局+3-tab)
+│   ├── collect.html
 │
-├── tests/                    # 测试 (167 个用例, 全部通过)
-│   ├── test_app_routes.py       — 路由与安全回归测试 (10 个用例: CSRF / 页码校验 / 采集口令 / 限流)
+├── tests/                    # 测试 (184 个用例, 全部通过)
+│   ├── test_app_routes.py       — 路由与安全回归测试 (11 个用例: 冒烟测试 8 + CSRF / 页码校验 / 采集口令 / 限流)
 │   ├── test_advice_route.py     — advice 2-tab 功能测试 (12 个用例: Agent/对比 GET+POST / 边界)
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
-│   ├── test_agent_tools.py      — Agent 工具函数测试 (5 个用例: compare_jobs 城市/类别对比)
+│   ├── test_agent_tools.py      — Agent 工具函数测试 (14 个用例: 对比/搜索/技能分析)
 │   ├── test_cross.py            — 交叉分析函数测试 (11 个用例: salary_vs_exper / salary_vs_edu)
 │   ├── test_python_job_scraper.py — 采集参数构建单元测试 (27 个用例: 关键词 / 城市 / 页码 / 时间戳)
 │   ├── test_salary_parser.py    — 薪资解析全覆盖测试 (20 个用例: 面议/万/千/年/日/·薪/奖金剥离)
@@ -130,7 +133,8 @@ playwright install chromium
 
 # 2. 配置环境变量（.env，仅 Agent / 加固配置需要）
 # 复制 .env.example 为 .env，按需填入:
-#   DEEPSEEK_API_KEY=你的Key         (仅 Agent 问答页面需要)
+#   DEEPSEEK_API_KEY=你的Key         (主用 AI 模型, Agent 问答 + 图表解读)
+#   QWEN_API_KEY=你的千问Key           (备选 fallback, DeepSeek 不可用时自动切换)
 #   FLASK_SECRET=64字符随机字符串    (用于 session 和 CSRF token 签名持久化；不填每次启动随机)
 #   COLLECT_TOKEN=采集口令          (设置后采集接口要求校验口令，防误操作清空数据；不填不启用)
 #   FLASK_HOST=127.0.0.1 / 0.0.0.0  (默认 127.0.0.1；0.0.0.0 才对外监听局域网)
@@ -150,7 +154,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import train_and_evaluate; print(train_and_evaluate())"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (167 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (184 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）
@@ -211,7 +215,7 @@ python app.py                      # 访问 http://<服务器IP>:5000
 | `/job/<id>` | 职位详情 + 51job原文跳转 | `job_detail.html` |
 | `/chart` | 薪资/学历/经验分布图 | `h.html` |
 | `/ml` | 聚类结果 + 薪资预测表单 | `ml.html` |
-| `/advice` | AI Agent 问答 + 城市对比（2-tab） | `advice.html` |
+| `/advice` | AI Agent 问答 + 城市对比 + 技能需求分析（3-tab） | `advice.html` |
 | `/collect` | 触发实时数据采集 | `collect.html` |
 
 <!-- 变更记录见 git log，或 CODEBUDDY.md 第 10 节 -->

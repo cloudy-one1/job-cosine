@@ -1,11 +1,50 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="fade-up" style="text-align:center; padding:40px 0 26px;">
-    <div class="stamp" style="margin:0 auto 22px;">COSINE</div>
+<style>
+/* 首页功能入口卡片 */
+.feature-grid {
+    display:flex; gap:16px; margin-top:36px; flex-wrap:wrap;
+    max-width:960px; margin-left:auto; margin-right:auto;
+}
+.feature-card {
+    flex:1 1 240px; min-width:220px;
+    background:var(--card); border:1px solid var(--line);
+    border-radius:18px; padding:28px 24px 22px;
+    text-decoration:none; color:var(--ink);
+    transition:.25s ease;
+    display:flex; flex-direction:column; gap:8px;
+    position:relative; overflow:hidden;
+    box-shadow:0 1px 4px rgba(0,0,0,.03);
+}
+.feature-card:hover {
+    transform:translateY(-5px);
+    box-shadow:0 12px 30px rgba(0,0,0,.1);
+    border-color:var(--accent);
+}
+.feature-card .fc-icon {
+    font-size:32px; line-height:1; margin-bottom:4px;
+}
+.feature-card .fc-title {
+    font-size:18px; font-weight:700; font-family:'Noto Serif SC',serif;
+    color:var(--ink);
+}
+.feature-card .fc-desc {
+    font-size:14px; color:var(--ink-soft); line-height:1.6;
+}
+.feature-card .fc-arrow {
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:13px; font-weight:600; color:var(--accent);
+    margin-top:4px; transition:.2s ease;
+}
+.feature-card:hover .fc-arrow { gap:10px; }
+</style>
+
+<div class="fade-up" style="text-align:center; padding:36px 0 20px;">
+    <div class="stamp" style="margin:0 auto 20px;">COSINE</div>
     <p class="eyebrow">Recruitment Intelligence Ledger · 案卷 2026-PY</p>
-    <h1 style="font-size:42px;">招聘信息实时数据分析系统</h1>
-    <p style="color:var(--ink-soft); font-size:16px; max-width:660px; margin:8px auto 0;">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
+    <h1 style="font-size:42px; letter-spacing:-.02em;">招聘信息实时数据分析系统</h1>
+    <p style="color:var(--ink-soft); font-size:16px; max-width:640px; margin:10px auto 0;">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
 </div>
 
 <div class="card fade-up" data-no="NO. 01 · 查询 / 采集入口" style="max-width:960px; margin:30px auto;">
@@ -81,16 +120,41 @@
     </form>
 </div>
 
-<div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:6px;">
-    <a href="/chart" class="btn btn-default">📊 查看可视化图表 →</a>
-    <a href="/ml" class="btn btn-default">🤖 机器学习分析 →</a>
-    <a href="/advice" class="btn btn-default">💬 问问求职小助手 →</a>
+<div class="feature-grid">
+    <a href="/chart/city" class="feature-card fade-up">
+        <div class="fc-icon">📊</div>
+        <div class="fc-title">图表分析</div>
+        <div class="fc-desc">城市分布、薪资区间、学历经验占比……多维度数据一图尽览</div>
+        <span class="fc-arrow">查看图表 →</span>
+    </a>
+    <a href="/ml" class="feature-card fade-up">
+        <div class="fc-icon">🎯</div>
+        <div class="fc-title">薪资洞察</div>
+        <div class="fc-desc">岗位智能聚类 + 三模型薪资预测，输入城市职位即可评估薪资</div>
+        <span class="fc-arrow">开始预测 →</span>
+    </a>
+    <a href="/advice" class="feature-card fade-up">
+        <div class="fc-icon">💬</div>
+        <div class="fc-title">智能助手</div>
+        <div class="fc-desc">AI 解读数据趋势、对比不同城市岗位、分析技能需求热度</div>
+        <span class="fc-arrow">开始咨询 →</span>
+    </a>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+// 静默预热：后台触发图表数据计算 + ML 模型训练，后续导航秒开
+(function preload(){
+    var url = '/api/warmup';
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon(url);
+    } else {
+        fetch(url, {method:'GET', keepalive:true}).catch(function(){});
+    }
+})();
+
 const cityMap = {{ city_map_json | safe }};
 const selected = []; // {city, code}
 
