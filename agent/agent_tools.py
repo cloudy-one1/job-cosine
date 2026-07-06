@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import sqlite3
 import re
+import json
+import logging
 from collections import Counter
 import config
 from analysis.jobtitle import classify
@@ -19,6 +21,8 @@ from analysis.xueli import xuelifun
 from analysis.jinyan import jinyanfun
 from analysis.region import extract_city
 from modeling.salary_predict import lookup_salary_range as _lookup_salary_range
+
+_logger = logging.getLogger('job_analysis.agent_tools')
 
 
 # 已废弃: set_model_result (薪资预测已替换为纯 DB 查询)
@@ -757,7 +761,7 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
 
     # ---- 3. 逐岗位 Gap 分析 ----
     gap_results = []
-    for job_id, post, addr, smin, smax, edu_text, exper_text, content in rows:
+    for job_id, post, addr, smin, smax, edu_text, exper_text, content, job_url in rows:
         job_text = f"{post} {content or ''}"
         avg_sal = round((smin + smax) / 2, 1) if (smin or smax) else 0
 
@@ -858,6 +862,88 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
         summary_parts.append(f"最常缺失的技能: {', '.join(top_missing[:6])}。")
     summary_parts.append('以上建议基于数据库中的真实岗位JD生成,建议优先补充高频缺失技能。')
 
+    # ---- 5. 双 Agent 深度分析 (LLM Critic 诊断 + Optimizer 优化) ----
+    critique = ''
+    optimized_resume = ''
+    ai_available = False
+    provider = ''
+    try:
+        from agent.agent_core import call_llm_with_fallback
+
+        deepseek_key = getattr(config, 'DEEPSEEK_API_KEY', '')
+        qwen_key = getattr(config, 'QWEN_API_KEY', '')
+        if not deepseek_key and not qwen_key:
+            _logger.info('简历双 Agent 跳过: DEEPSEEK_API_KEY / QWEN_API_KEY 均未配置')
+        else:
+            # 仅取前 5 个最相关 Gap 岗位喂给 LLM, 控制 token 成本
+            top_gaps = []
+            for g in gap_results[:5]:
+                top_gaps.append({
+                    'title': g['title'],
+                    'city': g['city'],
+                    'salary_k': g['salary_k'],
+                    'edu_require': g['edu_require'],
+                    'exper_require': g['exper_require'],
+                    'skill_match_pct': g['skill_match_pct'],
+                    'matched_skills': g['matched_skills'],
+                    'missing_skills': g['missing_skills'],
+                    'edu_gap': g['edu_gap'],
+                    'exper_gap': g['exper_gap'],
+                })
+
+            llm_context = {
+                'extracted': {'skills': extracted_skills, 'edu': extracted_edu,
+                              'exper': extracted_exper},
+                'target_city': target_city,
+                'target_category': target_category,
+                'top_missing_skills': top_missing,
+                'top_gaps': top_gaps,
+            }
+
+            # --- Agent 1: Critic 诊断 ---
+            critic_messages = [
+                {'role': 'system', 'content': (
+                    '你是资深技术招聘顾问(简历诊断专家)。基于候选人简历画像与真实岗位JD的 Gap 数据,'
+                    '输出结构化诊断。必须用中文,分点清晰,聚焦可操作的改进项,'
+                    '不得编造简历中不存在的事实或技能。'
+                )},
+                {'role': 'user', 'content': (
+                    '以下是候选人简历提取画像与匹配岗位的 Gap 分析数据(来自本地招聘数据库):\n'
+                    f'{json.dumps(llm_context, ensure_ascii=False, indent=2)}\n\n'
+                    '请输出:\n'
+                    '## 简历诊断报告\n'
+                    '- 核心优势(2-3点)\n'
+                    '- 关键短板(技能/学历/经验缺口,按严重度排序)\n'
+                    '- ATS 关键词缺口(应补充但未体现的高频技能)\n'
+                    '- 优先级改进路线(下一步最该做什么)'
+                )},
+            ]
+            critique, provider = call_llm_with_fallback(critic_messages, deepseek_key=deepseek_key)
+
+            # --- Agent 2: Optimizer 优化(依赖 Critic 输出) ---
+            optimizer_messages = [
+                {'role': 'system', 'content': (
+                    '你是简历优化专家。基于原始简历与诊断报告,产出可直接使用的优化版简历。'
+                    '必须保留候选人真实经历,仅做关键词融入与表述强化,'
+                    '不得虚构技能或经历。用中文 Markdown 输出。'
+                )},
+                {'role': 'user', 'content': (
+                    f'# 原始简历\n{resume_text}\n\n'
+                    f'# 诊断报告\n{critique}\n\n'
+                    f'# 目标岗位方向\n城市: {target_city or "不限"}  类别: {target_category or "不限"}\n\n'
+                    '请输出优化后的简历(Markdown),包含:\n'
+                    '1. 优化版个人摘要(2-3句,融入目标岗位高频关键词)\n'
+                    '2. 技能板块(按目标岗位要求重排,突出匹配项)\n'
+                    '3. 项目/经历改写建议(将原有经历用 STAR 法则 + 关键词重写 1-2 条示例)\n'
+                    '4. 一句话投递建议'
+                )},
+            ]
+            optimized_resume, _ = call_llm_with_fallback(optimizer_messages, deepseek_key=deepseek_key)
+            ai_available = True
+    except Exception as e:
+        _logger.warning('简历双 Agent 分析失败,降级为规则结果: %s', e)
+        ai_available = False
+
     return {
         'extracted': {
             'skills': extracted_skills,
@@ -867,6 +953,10 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
         'job_gaps': gap_results,
         'summary': ' '.join(summary_parts),
         'top_missing_skills': top_missing,
+        'critique': critique,
+        'optimized_resume': optimized_resume,
+        'ai_available': ai_available,
+        'provider': provider,
     }
 
 
@@ -898,7 +988,7 @@ TOOLS = {
     },
     'predict_salary': {
         'func': predict_salary,
-        'description': '使用线性回归模型预测月薪(千元)。参数: city (字符串), category (字符串), edu (可选字符串), exper (可选字符串)。',
+        'description': '基于数据库真实岗位统计，查询指定条件的薪资范围（中位数/均值/分位数等）。参数: city (字符串), category (字符串), edu (可选字符串), exper (可选字符串)。',
     },
     'compare_jobs': {
         'func': compare_jobs,

@@ -148,19 +148,19 @@ class TestAppSecretAndCSRF:
         assert key is not None, "app.secret_key 未设置 (应为 Flask-WTF CSRF / session 前提)"
         assert len(key) > 0, "app.secret_key 为空字符串"
 
-    def test_csrf_blocks_post_salary_lookup_without_token(self):
-        """POST /salary-lookup 不带 CSRF token 返回 4xx (WTF_CSRF_CHECK_DEFAULT 生效)。"""
+    def test_csrf_blocks_post_advice_without_token(self):
+        """POST /advice 不带 CSRF token 返回 4xx (WTF_CSRF_CHECK_DEFAULT 生效)。"""
         from app import app
         csrf_app = app
         csrf_app.config['TESTING'] = False
         csrf_app.config['WTF_CSRF_ENABLED'] = True
         with csrf_app.test_client() as c:
-            resp = c.post('/salary-lookup', data={
-                'city': '北京', 'category': '后端开发',
-                'edu': '本科', 'exper': '1-3年',
+            resp = c.post('/advice', data={
+                'city': '北京', 'target_post': '后端开发',
+                'edu': '本科', 'experience': '1-3年',
             })
             assert resp.status_code in (400, 403), (
-                f"未带 CSRF token 的 POST /salary-lookup 返回 {resp.status_code},"
+                f"未带 CSRF token 的 POST /advice 返回 {resp.status_code},"
                 f"预期 400/403 (CSRF 保护应该生效)"
             )
 

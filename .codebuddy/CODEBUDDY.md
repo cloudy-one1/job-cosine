@@ -9,7 +9,7 @@
 
 - **项目名称**：job-cosine
 - **项目性质**：毕业设计 / 求职数据分析平台
-- **一句话描述**：采集招聘网站（目前 51job）Python 岗位数据 → 清洗入库 → 多维度分析（薪资、学历、经验、地区、技能） → 聚类建模 + 薪资预测 → AI Agent 给出求职建议，并用 Flask 网页端全部展示。
+- **一句话描述**：采集招聘网站（目前 51job）Python 岗位数据 → 清洗入库 → 多维度分析（薪资、学历、经验、地区、技能） → 聚类建模 + 薪资统计查询 → AI Agent 给出求职建议，并用 Flask 网页端全部展示。
 - **远程仓库**：`https://github.com/cloudy-one1/job-cosine.git`
 - **答辩演示分支**：`main`（受保护，禁止直接 push，必须走 PR 合并）
 - **日常开发分支**：`develop`（新对话默认在 develop 上写代码）
@@ -26,7 +26,7 @@
 | 数据采集 | **Playwright + playwright-stealth** | requests 库被 51job WAF 拦截，必须用无头浏览器 + 隐身插件绕过 |
 | 数据分析 | **pandas + numpy** | 薪资分段解析、经验/学历/地区聚合 |
 | NLP | **jieba** | 岗位描述/技能词中文分词与词频 |
-| 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类 + 线性回归/随机森林薪资预测(三模型对比);模型结果缓存避免重复训练 |
+| 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类（无监督） |
 | AI Agent | 自研轻量 Agent + **DeepSeek API** | 基于采集数据+模型结果，输出个性化求职建议；密钥从 `.env` 读 |
 | 部署 | **Docker + docker-compose** | 容器内只跑 Web + ML + Agent，Playwright 爬虫在宿主机运行（体积原因）；volume 挂载 `data.db` + 源码热更新 |
 | 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 167 个用例，覆盖率 > 90% |
@@ -63,9 +63,9 @@ project1/
 │   └── jobtitle.py            ← 职位名称关键词 + 技能词频（jieba）
 │
 ├── modeling/                ← 第 3 层：机器学习建模
-│   ├── salary_predict.py      ← 薪资预测模型（训练+预测）
+│   ├── salary_predict.py      ← 薪资统计查询（纯 DB 查询，中位数/均值/分位数）
 │   ├── job_clustering.py      ← 岗位聚类（KMeans 技能向量）
-│   └── cache.py               ← 模型结果缓存（避免每次请求重训，sklearn/jieba 懒加载提速启动）
+│   └── cache.py               ← 已删除（原薪资预测模型缓存，2026-07-07 移除）
 │
 ├── agent/                   ← 第 4 层：AI Agent 求职建议
 │   ├── agent_core.py          ← Agent 主循环 + 工具调用调度 + DeepSeek/千问双模型 fallback
@@ -76,7 +76,7 @@ project1/
 │   ├── input.html             ← 首页：输入城市/关键词/薪资期望（带 CSRF token）
 │   ├── data.html              ← 数据总览页（分页展示采集到的职位列表）
 │   ├── h.html                 ← 分析图表页（ECharts：饼图/柱状图/地图）
-│   ├── ml.html                ← 建模结果页（聚类簇 + 薪资预测表单+结果）
+│   ├── ml.html                ← 建模结果页（聚类簇 + 技能热力图/相似度网络/薪资曲线/学历溢价）
 │   ├── cluster_jobs.html      ← 方向岗位明细列表页（点击 /ml 簇卡片进入）
 │   ├── advice.html            ← Agent 求职建议页（带 CSRF token 提交画像）
 │   └── collect.html           ← 数据采集管理页（可选 COLLECT_TOKEN 口令校验）
@@ -287,6 +287,7 @@ git push                                 # develop 直接推
 
 ## 10. 最近变更记录（Changelog 摘要）
 
+- 2026-07-07 · `feat: 彻底移除 /ml 页面「薪资参考查询」板块（含 /salary-lookup 路由、查询表单、结果展示、导航项），/ml 聚焦聚类与多维薪资分析`
 - 2026-07-06 · `feat: advice 第三个 tab 从「技能需求分析」替换为「岗位匹配推荐」— 技能/学历/经验/城市四维度透明权重评分`
 - 2026-07-06 · `feat: /ml 页面方向卡片支持点击查看该方向岗位明细列表`
 - 2026-07-06 · `test: 新增路由冒烟测试(8条) + 模块级缓存变量集中化，全量 184 passed`
@@ -348,7 +349,6 @@ app.py:369-400     → /job/<id> 岗位详情页
 app.py:402-410     → /chart 图表页路由（使用 _compute_chart_data 缓存）
 app.py:412-537     → /chart/analyze 路由（服务端 5 分钟 AI 分析缓存）
 app.py:538-572     → /ml 建模页路由（首次触发训练）
-app.py:574-647     → /predict 薪资预测 POST 路由
 app.py:649-685     → /ml/cluster/<id> 方向岗位明细列表路由
 app.py:687-775     → /collect 数据采集路由（含 5 页上限 + 模型重训）
 app.py:776-808     → 采集成功后的缓存/模型失效逻辑
@@ -367,11 +367,9 @@ agent/agent_tools.py:87-208  → match_jobs 四维度透明评分（技能40%+�
 templates/h.html:830-910    → 前端 AI 预取（prefetchAllAI）与点击秒开缓存（showAI, 2s 最小延迟）
 templates/advice.html:243-260 → Agent 表单提交 loading 遮罩
 templates/advice.html:69-76   → advice 3-tab 切换（Agent/对比/岗位匹配推荐）
-templates/ml.html:93          → 薪资预测标题锚点（predict-section）
-templates/ml.html:248-256     → 薪资预测结果自动滚动 JS
 templates/cluster_jobs.html   → 方向岗位明细列表页（点击 /ml 卡片进入）
 ```
 
 ---
 
-> 最后更新: 2026-07-06 · 岗位匹配推荐 tab 替换技能需求分析 + 四维度透明评分
+> 最后更新: 2026-07-07 · 移除 /ml 页面薪资参考查询板块

@@ -12,7 +12,7 @@
 项目包结构:
   data/       — 数据采集与清洗 (scraper, parser, cleaner)
   analysis/   — 描述性统计 (薪资、学历、经验、地区、职位分类)
-  modeling/   — 机器学习模型 (聚类、薪资预测)
+  modeling/   — 机器学习与统计模型 (聚类、薪资分析)
   agent/      — ReAct Agent 系统 (工具注册、推理循环)
   templates/  — Flask 模板
 
@@ -281,14 +281,13 @@ def _compute_chart_data():
 # 聚类结果懒加载设计说明：
 # 不在启动时触发 sklearn/pandas 的首次 .pyc 编译，
 # 等首个访问 /ml 的请求到来时才计算（避免误判启动卡死）。
-# 薪资查询已替换为纯数据库查（/salary-lookup），不依赖任何 ML 模型。
 
 def _get_clustering():
     """获取聚类结果（首次调用时训练+缓存，后续直接返回）。"""
     global _clustering_cache
     if _clustering_cache is not None:
         return _clustering_cache
-    _logger.info('正在预计算职位聚类和薪资预测模型(只在第一次访问时跑一次)...')
+    _logger.info('正在预计算职位聚类(只在第一次访问时跑一次)...')
     _clustering_cache = _load_or_train_models()
     if _clustering_cache is not None:
         _logger.info('预计算完成。')
@@ -374,17 +373,39 @@ def index():
 
 @app.route('/api/warmup')
 def api_warmup():
-    """静默预热接口：首页加载后前端静默调用，提前计算图表数据 + 训练聚类模型。
-    此后用户点「图表分析」「薪资洞察」即可秒开。"""
+    """静默预热接口：首页加载后前端静默调用，提前计算图表数据 + 全部建模模块。
+    此后用户点「图表分析」「薪资洞察」即可秒开，无需等待训练。"""
+    # 图表数据（/chart 页面）
     try:
         _compute_chart_data()
     except Exception as e:
         _logger.warning('预热图表数据失败: %s', e)
+    # 聚类模型（/ml 页面核心）
     try:
         _get_clustering()
     except Exception as e:
         _logger.warning('预热聚类模型失败: %s', e)
-    _logger.info('预热完成: 图表数据 + 聚类模型均已就绪')
+    # 技能热力图
+    try:
+        _get_skill_heatmap()
+    except Exception as e:
+        _logger.warning('预热技能热力图失败: %s', e)
+    # 岗位相似度网络
+    try:
+        _get_similarity()
+    except Exception as e:
+        _logger.warning('预热相似度网络失败: %s', e)
+    # 薪资成长曲线
+    try:
+        _get_salary_curve()
+    except Exception as e:
+        _logger.warning('预热薪资曲线失败: %s', e)
+    # 学历溢价分析
+    try:
+        _get_edu_premium()
+    except Exception as e:
+        _logger.warning('预热学历溢价分析失败: %s', e)
+    _logger.info('预热完成: 图表数据 + 聚类 + 热力图 + 相似度 + 薪资曲线 + 学历溢价均已就绪')
     return '{"ok":true}', 200, {'Content-Type': 'application/json'}
 
 
@@ -767,11 +788,6 @@ def ml_analyze():
 
 @app.route('/ml')
 def ml_page():
-    # 支持清除查询结果: /ml?clear_ml=1
-    if request.args.get('clear_ml') == '1':
-        session.pop('ml_state', None)
-        return redirect(url_for('ml_page'))
-
     clustering = _get_clustering()
     total_jobs = clustering.get('total_jobs', 0) if clustering else 0
 
@@ -781,86 +797,14 @@ def ml_page():
     salary_curve = _get_salary_curve() if clustering else {'error': '请先采集数据'}
     edu_premium = _get_edu_premium() if clustering else {'error': '请先采集数据'}
 
-    # 尝试从 session 恢复上次查询结果
-    ml_state = session.get('ml_state')
-
-    base_context = dict(
+    return render_template(
+        'ml.html',
         clustering=clustering,
         total_jobs=total_jobs,
         heatmap=heatmap,
         similarity=similarity,
         salary_curve=salary_curve,
         edu_premium=edu_premium,
-    )
-
-    if ml_state:
-        base_context.update(
-            lookup_result=ml_state.get('lookup_result'),
-            lookup_cluster_ref=ml_state.get('lookup_cluster_ref'),
-            restored=True,
-        )
-
-    return render_template('ml.html', **base_context)
-
-
-@app.route('/salary-lookup', methods=['POST'])
-def salary_lookup():
-    import modeling.salary_predict as salary_predict
-
-    city = request.form.get('city', '').strip()
-    category = request.form.get('category', '').strip()
-    edu = request.form.get('edu', '').strip() or ''
-    exper = request.form.get('exper', '').strip() or ''
-
-    result = salary_predict.lookup_salary_range(city, category, edu, exper)
-
-    clustering = _get_clustering()
-    total_jobs = clustering.get('total_jobs', 0) if clustering else 0
-
-    # 找到最接近的聚类簇作为参考
-    lookup_cluster_ref = None
-    if result.get('count', 0) > 0 and clustering:
-        best_cluster = None
-        best_score = 0
-        for c in clustering.get('clusters', []):
-            score = 0
-            if category and category in c.get('auto_label', ''):
-                score += 3
-            for kw in c.get('top_keywords', []):
-                if category and (category in kw or kw in category):
-                    score += 2
-            if score > best_score:
-                best_score = score
-                best_cluster = c
-        if best_cluster:
-            lookup_cluster_ref = {
-                'label': best_cluster['auto_label'],
-                'avg_salary': best_cluster.get('avg_salary', 0),
-                'count': best_cluster.get('count', 0),
-            }
-
-    # 保存状态到 session
-    session['ml_state'] = {
-        'lookup_result': result,
-        'lookup_cluster_ref': lookup_cluster_ref,
-    }
-
-    # 懒加载四个新功能的数据
-    heatmap = _get_skill_heatmap() if clustering else {'error': '请先采集数据'}
-    similarity = _get_similarity() if clustering else {'error': '请先采集数据'}
-    salary_curve_data = _get_salary_curve() if clustering else {'error': '请先采集数据'}
-    edu_premium_data = _get_edu_premium() if clustering else {'error': '请先采集数据'}
-
-    return render_template(
-        'ml.html',
-        clustering=clustering,
-        total_jobs=total_jobs,
-        lookup_result=result,
-        lookup_cluster_ref=lookup_cluster_ref,
-        heatmap=heatmap,
-        similarity=similarity,
-        salary_curve=salary_curve_data,
-        edu_premium=edu_premium_data,
     )
 
 

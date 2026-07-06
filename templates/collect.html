@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<p class="eyebrow">案卷 NO. 00 · 实时采集结果</p>
+<p class="eyebrow">实时采集结果</p>
 <h2 style="margin-bottom:20px; font-size:30px;">采集结果</h2>
 
 {% if restored %}
@@ -18,7 +18,7 @@
 <div class="alert alert-info">
     采集完成: 关键词"{{ keyword }}"{% if city %} · 城市"{{ city }}"{% endif %},
     共抓到 {{ total_count }} 条,成功写入数据库 <span class="mono">{{ success_count }}</span> 条
-    (已清空上一次的数据,聚类和预测模型也已重新训练)。
+    (已更新最新数据)。
     {% if pages_collected and pages_per_city %}
     <br>
     <small style="color:#666;">

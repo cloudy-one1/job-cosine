@@ -259,7 +259,7 @@
 
 <!-- ====== Hero ====== -->
 <div class="hero">
-    <div class="hero-badge">案卷 NO. 05 · 智能助手</div>
+    <div class="hero-badge">智能助手</div>
     <h2>AI 求职顾问</h2>
     <p>基于真实招聘数据，AI 为你解读趋势、对比城市岗位、智能匹配心仪职位，助你做出更明智的职业决策。</p>
 </div>
@@ -532,10 +532,7 @@
             <div class="warm-card-title">岗位匹配推荐</div>
         </div>
         <p style="color: var(--warm-ink-soft); font-size: 14px; margin-bottom: 20px; line-height: 1.6;">
-            输入你的技能、期望城市、学历和经历，系统以<strong>六维度透明权重</strong>综合评分 (1-5分制)，推荐最适合你的岗位。<br>
-            <span style="font-size: 12px; opacity: .7;">
-                参考: career-ops-cn 评分框架 + Job-Application-Agent Critic 校验 + ai-job-search 相关性权重 + JobSpy 统一 Schema
-            </span>
+            输入你的技能、期望城市、学历和经历，系统以<strong>六维度透明权重</strong>综合评分 (1-5分制)，推荐最适合你的岗位。</p>
         </p>
         <form method="post" action="/advice">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -721,8 +718,7 @@
     {% endif %}
 
     <p style="color: var(--warm-ink-soft); font-size: 14px; margin-bottom: 20px; line-height: 1.6;">
-        <strong>粘贴文本</strong>或<strong>上传简历文件</strong>（PDF / Word），系统会<strong>结构化提取</strong>你的技能、学历、经验，并与数据库中的真实岗位 JD 做<strong>逐岗位 Gap 分析</strong>，输出简历优化建议。<br>
-        <span style="font-size: 12px; opacity: .7;">参考: Job-Application-Agent 简历-岗位对比审查模式</span>
+        <strong>粘贴文本</strong>或<strong>上传简历文件</strong>（PDF / Word），系统会<strong>结构化提取</strong>你的技能、学历、经验，并与数据库中的真实岗位 JD 做<strong>逐岗位 Gap 分析</strong>，输出简历优化建议。</p>
     </p>
 
     <div class="warm-card">
@@ -821,6 +817,16 @@
     </div>
     {% endif %}
 
+    <!-- AI 诊断报告 (Agent 1: Critic) -->
+    {% if review_result.critique %}
+    <div class="divider-text"><span>🤖 AI 简历诊断报告 · {{ review_result.provider or 'AI' }}</span></div>
+    <div class="warm-card" style="padding: 20px 24px; border-left: 4px solid #667EEA;">
+        <div style="font-size:14px; color:var(--warm-ink); line-height:1.8; white-space:pre-wrap;">{{ review_result.critique }}</div>
+    </div>
+    {% elif not review_result.ai_available %}
+    <div class="warm-alert" style="margin-top:8px;">未启用 AI 深度分析（未配置 DEEPSEEK_API_KEY / QWEN_API_KEY），以下为规则引擎生成的 Gap 结果。</div>
+    {% endif %}
+
     <!-- 逐岗位 Gap -->
     {% if review_result.job_gaps %}
     <div class="divider-text"><span>逐岗位 Gap 分析 · 共 {{ review_result.job_gaps|length }} 个匹配岗位</span></div>
@@ -895,7 +901,6 @@
                 <span style="font-size:10px; color:var(--warm-ink-soft);">技能匹配</span>
             </div>
         </div>
-        <a href="/job/{{ gap.id }}" style="
         <div style="margin-top:12px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
             <a href="/job/{{ gap.id }}" style="
                 font-size:13px; color:var(--warm-primary);
@@ -921,7 +926,17 @@
     </div>
     {% endif %}
     {% endif %}
+
+    <!-- AI 优化简历 (Agent 2: Optimizer) -->
+    {% if review_result.optimized_resume %}
+    <div class="divider-text"><span>✨ AI 优化简历 · 可直接复制使用</span></div>
+    <div class="warm-card" style="padding: 20px 24px; border-left: 4px solid #38A169; position:relative;">
+        <button onclick="copyResume()" style="position:absolute; top:14px; right:14px; font-size:12px; padding:4px 12px; border:none; border-radius:14px; background:var(--warm-primary); color:#fff; cursor:pointer;">复制</button>
+        <div id="optimized-resume" style="font-size:14px; color:var(--warm-ink); line-height:1.8; white-space:pre-wrap;">{{ review_result.optimized_resume }}</div>
+    </div>
     {% endif %}
+
+{% endif %}
 
 </div>
 
@@ -932,6 +947,27 @@ function switchTab(name) {
     document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
     document.querySelector('.pill-btn[data-tab="' + name + '"]').classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
+}
+
+// 复制 AI 优化简历
+function copyResume() {
+    var el = document.getElementById('optimized-resume');
+    if (!el) return;
+    var text = el.innerText;
+    var btn = event.currentTarget;
+    var done = function() { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = '复制'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function(){ fallbackCopy(text, done); });
+    } else {
+        fallbackCopy(text, done);
+    }
+}
+function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
 }
 
 // 表单提交 loading 遮罩

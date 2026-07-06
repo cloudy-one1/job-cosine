@@ -5,7 +5,6 @@
   * analysis.jobtitle.classify()  — 关键词规则匹配
   * analysis.region.extract_city() — 城市提取
   * modeling.job_clustering.tokenize() — jieba 分词 + 去停用词
-  * modeling.salary_predict._fuzzy_match() — 模糊匹配回退
 """
 import sys
 import os
@@ -213,49 +212,6 @@ class TestTokenize:
         assert '测试' in words
 
 
-# ============================================================
-# _fuzzy_match() — 模糊匹配
-# ============================================================
-class TestFuzzyMatch:
-    """验证模糊匹配/回退逻辑。"""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from modeling.salary_predict import _fuzzy_match as _fm
-        self.fm = _fm
-
-    def test_exact_match_no_sub(self):
-        val, sub = self.fm('本科', ['本科', '大专', '硕士'], '不限')
-        assert val == '本科'
-        assert sub is False
-
-    def test_empty_returns_fallback(self):
-        val, sub = self.fm('', ['本科', '大专'], '不限')
-        assert val == '不限'
-        assert sub is False
-
-    def test_none_returns_fallback(self):
-        val, sub = self.fm(None, ['本科'], '不限')
-        assert val == '不限'
-        assert sub is False
-
-    def test_fuzzy_substring_match(self):
-        """_fuzzy_match 逻辑是 value in v (输入是有效值的子串?), 不是 v in value。
-        '大学本科' 不是任何有效值的子串,应回退到 fallback。"""
-        val, sub = self.fm('大学本科', ['本科', '大专', '硕士'], '不限')
-        assert val == '不限'
-        assert sub is True
-
-    def test_fuzzy_match_reverse(self):
-        """当输入'本科'直接匹配时,不发生替换。"""
-        val, sub = self.fm('本科', ['本科', '大专'], '不限')
-        assert val == '本科'
-        assert sub is False
-
-    def test_complete_mismatch_fallback(self):
-        val, sub = self.fm('博士', ['本科', '大专', '硕士'], '不限')
-        assert val == '不限'
-        assert sub is True
 
 
 if __name__ == '__main__':

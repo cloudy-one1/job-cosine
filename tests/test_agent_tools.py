@@ -20,6 +20,7 @@ def temp_db(monkeypatch):
     conn = sqlite3.connect(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS data (
+            id INTEGER PRIMARY KEY,
             post TEXT, address TEXT, salary_min REAL, salary_max REAL,
             edu TEXT, exper TEXT, content TEXT DEFAULT '', job_url TEXT DEFAULT ''
         )
@@ -196,6 +197,77 @@ class TestSkillDemandAnalysis:
             assert result['avg_salary_k'] > 0
             k = result['median_salary_k']
             assert k <= result['avg_salary_k'] * 2
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])
+
+
+# ============================================================
+# review_resume — 双 Agent 简历审查 + 规则引擎降级
+# ============================================================
+class TestReviewResume:
+    """验证 review_resume 规则层 + 双 Agent LLM 调用与降级。"""
+
+    SAMPLE_RESUME = (
+        "我有3年Python开发经验，熟悉Django、Flask、MySQL。本科毕业于某大学，"
+        "负责过Web后端项目，使用Redis做缓存。"
+    )
+
+    def test_rule_based_fields_present(self, temp_db, monkeypatch):
+        """无 Key 时仅返回规则结果, 且 ai_available=False, 不抛 NameError(job_url 已解包)。"""
+        import config
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
+        from agent.agent_tools import review_resume
+        result = review_resume(self.SAMPLE_RESUME)
+        assert 'extracted' in result
+        assert 'job_gaps' in result
+        assert 'summary' in result
+        assert result['ai_available'] is False
+        assert result['critique'] == ''
+        assert result['optimized_resume'] == ''
+        # job_gaps 卡片应有 job_url (验证解包 bug 已修复)
+        if result['job_gaps']:
+            assert 'job_url' in result['job_gaps'][0]
+
+    def test_dual_agent_normal(self, temp_db, monkeypatch):
+        """配 Key 且 LLM 可用时, Critic + Optimizer 两段均返回, ai_available=True。"""
+        import config
+        import agent.agent_core
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', 'dummy-key')
+        calls = iter([
+            ('## 简历诊断报告\n核心优势: Python 经验扎实', 'deepseek'),
+            ('# 优化简历\n优化版个人摘要...', 'deepseek'),
+        ])
+        monkeypatch.setattr(
+            agent.agent_core, 'call_llm_with_fallback',
+            lambda messages, deepseek_key='': next(calls)
+        )
+        from agent.agent_tools import review_resume
+        result = review_resume(self.SAMPLE_RESUME)
+        assert result['ai_available'] is True
+        assert result['provider'] == 'deepseek'
+        assert '诊断' in result['critique']
+        assert '优化' in result['optimized_resume']
+
+    def test_llm_failure_degrades(self, temp_db, monkeypatch):
+        """LLM 双模型均失败时, 优雅降级为规则结果, ai_available=False 但 job_gaps 仍在。"""
+        import config
+        import agent.agent_core
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', 'dummy-key')
+        monkeypatch.setattr(
+            agent.agent_core, 'call_llm_with_fallback',
+            lambda messages, deepseek_key='': (_ for _ in ()).throw(RuntimeError('all LLM down'))
+        )
+        from agent.agent_tools import review_resume
+        result = review_resume(self.SAMPLE_RESUME)
+        assert result['ai_available'] is False
+        assert result['critique'] == ''
+        assert result['optimized_resume'] == ''
+        # 规则层结果必须保留
+        assert len(result['job_gaps']) > 0
+        assert result['extracted']['edu'] == '本科'
 
 
 if __name__ == '__main__':
