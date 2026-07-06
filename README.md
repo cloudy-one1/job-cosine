@@ -67,11 +67,16 @@ project1/
 ├── modeling/                 # 模型层：机器学习
 │   ├── job_clustering.py        — KMeans 无监督聚类 (自动选择最佳 k)
 │   ├── salary_predict.py        — 薪资预测 (线性回归 + 随机森林, 三模型对比)
+│   ├── edu_premium.py           — 学历溢价分析 (硕士vs本科vs大专薪资差)
+│   ├── salary_curve.py          — 薪资成长曲线 (经验-薪资趋势)
+│   ├── job_similarity.py        — 岗位相似度网络 (余弦相似度,转型建议)
+│   ├── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵)
 │   └── cache.py                 — 模型结果缓存 (单一真相来源)
 │
 ├── agent/                    # Agent 层：大模型对话
 │   ├── agent_core.py            — 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback
-│   └── agent_tools.py           — 工具注册与查询函数 (8 个可调用工具,含技能分析)
+│   └── agent_tools.py           — 工具注册与查询函数 (含技能分析/学历溢价/相似方向)
+│   └── resume_parser.py         — 简历文件解析 (PDF/DOCX → 纯文本)
 │
 ├── templates/                # HTML 模板 (9 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
@@ -81,16 +86,17 @@ project1/
 │   ├── advice.html (暖色调重设计:药丸导航+卡片布局+3-tab)
 │   ├── collect.html
 │
-├── tests/                    # 测试 (184 个用例, 全部通过)
-│   ├── test_app_routes.py       — 路由与安全回归测试 (11 个用例: 冒烟测试 8 + CSRF / 页码校验 / 采集口令 / 限流)
-│   ├── test_advice_route.py     — advice 2-tab 功能测试 (12 个用例: Agent/对比 GET+POST / 边界)
-│   ├── test_agent_loop.py       — Agent 逻辑集成测试骨架 (预留, 待补齐真实用例)
-│   ├── test_agent_tools.py      — Agent 工具函数测试 (14 个用例: 对比/搜索/技能分析)
-│   ├── test_cross.py            — 交叉分析函数测试 (11 个用例: salary_vs_exper / salary_vs_edu)
-│   ├── test_python_job_scraper.py — 采集参数构建单元测试 (27 个用例: 关键词 / 城市 / 页码 / 时间戳)
-│   ├── test_salary_parser.py    — 薪资解析全覆盖测试 (20 个用例: 面议/万/千/年/日/·薪/奖金剥离)
-│   ├── test_analysis_functions.py — classify/extract_city/tokenize/_fuzzy_match (32 个用例)
-│   └── test_model_logic.py      — 聚类/预测/缓存模型核心逻辑测试 (15 个用例, mock DB)
+├── tests/                    # 测试 (226 个用例, 全部通过)
+│   ├── test_app_routes.py       — 路由与安全回归测试
+│   ├── test_advice_route.py     — advice 功能测试
+│   ├── test_agent_loop.py       — Agent 逻辑集成测试
+│   ├── test_agent_tools.py      — Agent 工具函数测试
+│   ├── test_cross.py            — 交叉分析函数测试
+│   ├── test_python_job_scraper.py — 采集参数构建单元测试
+│   ├── test_salary_parser.py    — 薪资解析全覆盖测试
+│   ├── test_analysis_functions.py — classify/extract_city/tokenize
+│   ├── test_model_logic.py      — 聚类/预测/缓存模型核心逻辑测试
+│   └── test_modeling_features.py — 新增模块测试 (学历溢价/薪资曲线/相似度/热力图)
 │
 ├── Dockerfile                # Docker 镜像构建
 ├── docker-compose.yml        # Docker 一键部署
