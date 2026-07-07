@@ -29,7 +29,7 @@
 | 机器学习 | **scikit-learn 1.x + joblib** | KMeans 岗位聚类（无监督） |
 | AI Agent | 自研轻量 Agent + **DeepSeek API** | 基于采集数据+模型结果，输出个性化求职建议；密钥从 `.env` 读 |
 | 部署 | **Docker + docker-compose** | 容器内只跑 Web + ML + Agent，Playwright 爬虫在宿主机运行（体积原因）；volume 挂载 `data.db` + 源码热更新 |
-| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 167 个用例，覆盖率 > 90% |
+| 测试 | **pytest 7.x** | 全部测试在 `tests/` 目录，总计 233 个用例，覆盖率 > 90% |
 | 启动方式 | `python app.py`（venv 本机）或 `docker compose up -d` | Debug 开关由根目录 `.debug` 文件存在与否决定（不是 FLASK_DEBUG 环境变量） |
 
 ---
@@ -37,7 +37,7 @@
 ## 3. 项目结构（四层架构，硬约束，**严禁改动分工**）
 
 ```
-project1/
+project1-enhanced/
 ├── CODEBUDDY.md             ← 你现在读的这个（唯一真相来源）
 ├── README.md                ← 给人看的文档（GitHub 展示）
 ├── app.py                   ← Flask 入口；路由 + CSRF + 限流 + 启动逻辑
@@ -46,13 +46,14 @@ project1/
 ├── .env.example             ← 环境变量模板（复制为 .env 后填真实值，.env 已被 gitignore）
 ├── .debug                   ← （可选）存在即开启 Flask Debug 模式，优先级覆盖 FLASK_DEBUG 环境变量
 ├── data.db                  ← SQLite 数据库（gitignore，由爬虫脚本本地生成）
+├── cache/                   ← 运行时模型缓存（gitignore）：clustering_result.joblib 等
+├── logs/                    ← 运行时日志（gitignore）
 │
-│  # ===== 以下 4 个模块是硬约束的四层架构，名字和职责不能变 =====
+│  # ===== 以下 4 个包是硬约束的四层架构，名字和职责不能变（各含 __init__.py） =====
 │
 ├── data/                    ← 第 1 层：数据采集与清洗
 │   ├── python_job_scraper.py   ← Playwright 爬虫（51job Python 岗位）
 │   ├── salary_parser.py        ← 薪资字符串解析（"1.5-2万/月" → 数值化）
-│   └── fix_duplicate_address.py← 地址去重脚本
 │
 ├── analysis/                ← 第 2 层：统计分析（输出图表所需数据）
 │   ├── xueli.py               ← 学历分布统计
@@ -60,41 +61,51 @@ project1/
 │   ├── xinzi.py               ← 薪资分段统计
 │   ├── region.py              ← 地区分布统计
 │   ├── cross.py               ← 交叉分析(薪资 vs 经验/学历)
-│   └── jobtitle.py            ← 职位名称关键词 + 技能词频（jieba）
+│   ├── jobtitle.py            ← 职位分类(classify) + 技能词频（jieba）
+│   └── wordcloud_gen.py       ← 词云数据生成（generate_wordcloud_data）
 │
 ├── modeling/                ← 第 3 层：机器学习建模
-│   ├── salary_predict.py      ← 薪资统计查询（纯 DB 查询，中位数/均值/分位数）
-│   ├── job_clustering.py      ← 岗位聚类（KMeans 技能向量）
-│   └── cache.py               ← 已删除（原薪资预测模型缓存，2026-07-07 移除）
+│   ├── salary_predict.py      ← 薪资统计查询（DB 查询中位数/均值/分位数，供 Agent predict_salary 使用）
+│   ├── job_clustering.py      ← 岗位聚类（KMeans 技能向量，懒加载训练，含 job_ids 支持方向卡片跳转）
+│   ├── job_similarity.py      ← 岗位相似度网络（/ml 懒加载缓存）
+│   ├── salary_curve.py        ← 薪资曲线（/ml 懒加载缓存）
+│   ├── skill_heatmap.py       ← 技能热力图（/ml 懒加载缓存）
+│   └── edu_premium.py         ← 学历溢价（/ml 懒加载缓存）
 │
 ├── agent/                   ← 第 4 层：AI Agent 求职建议
-│   ├── agent_core.py          ← Agent 主循环 + 工具调用调度 + DeepSeek/千问双模型 fallback
-│   └── agent_tools.py         ← Agent 可用的工具函数（查数据/查模型/查词频等）
+│   ├── agent_core.py          ← Agent 主循环 + 工具调度 + DeepSeek/千问双模型 fallback
+│   ├── agent_tools.py         ← Agent 工具函数（TOOLS 注册表：query_jobs/match_jobs/skill_demand/compare_jobs/predict_salary 等）
+│   └── resume_parser.py       ← 简历文本解析（/advice 简历上传）
 │
 ├── templates/               ← Flask Jinja2 模板（所有页面）
 │   ├── base.html              ← 基础模板（导航栏 + 公共头尾）
 │   ├── input.html             ← 首页：输入城市/关键词/薪资期望（带 CSRF token）
 │   ├── data.html              ← 数据总览页（分页展示采集到的职位列表）
-│   ├── h.html                 ← 分析图表页（ECharts：饼图/柱状图/地图）
+│   ├── h.html                 ← 分析图表页（ECharts：饼图/柱状图/地图 + 词云 + 交叉分析）
+│   ├── job_detail.html        ← 岗位详情页（/job/<id>）
 │   ├── ml.html                ← 建模结果页（聚类簇 + 技能热力图/相似度网络/薪资曲线/学历溢价）
 │   ├── cluster_jobs.html      ← 方向岗位明细列表页（点击 /ml 簇卡片进入）
-│   ├── advice.html            ← Agent 求职建议页（带 CSRF token 提交画像）
+│   ├── interested.html        ← 我的收藏页（/interested，基于 session）
+│   ├── advice.html            ← Agent 求职建议页（4 tab：Agent/对比/岗位匹配推荐 + 简历上传，带 CSRF）
 │   └── collect.html           ← 数据采集管理页（可选 COLLECT_TOKEN 口令校验）
 │
-├── tests/                   ← 全部单元/集成测试（必过）
+├── tests/                   ← 全部单元/集成测试（必过，总计 233 用例）
 │   ├── test_app_routes.py      ← 路由/安全/CSRF/限流/分页输入校验回归测试
 │   ├── test_analysis_functions.py
 │   ├── test_model_logic.py
 │   ├── test_agent_tools.py     ← Agent 工具函数测试 (compare_jobs / extract_skills)
+│   ├── test_agent_loop.py
 │   ├── test_cross.py           ← 交叉分析函数测试 (salary_vs_exper / salary_vs_edu)
 │   ├── test_salary_parser.py
 │   ├── test_python_job_scraper.py
-│   └── test_agent_loop.py
+│   ├── test_advice_route.py    ← /advice 路由与表单测试
+│   ├── test_job_detail.py      ← /job/<id> 岗位详情测试
+│   └── test_modeling_features.py ← 建模特征（相似度/曲线/热力图/学历溢价）测试
 │
 ├── Dockerfile               ← 容器镜像（Python 3.11-slim，只装 Playwright Python 绑定，不下 Chromium）
 ├── docker-compose.yml       ← 开发部署：5000:5000，挂载 data.db / templates / app.py / config.py 热更新
 ├── .dockerignore
-└── .gitignore               ← 已排除 .env / .debug / data.db / __pycache__ / node_modules/ / venv/
+└── .gitignore               ← 已排除 .env / .debug / data.db / cache/ / logs/ / __pycache__ / node_modules/ / venv/
 ```
 
 ---
@@ -218,7 +229,7 @@ security: 加 CSRF 保护全表单 + /collect 限流 5/h + COLLECT_TOKEN
 
 ### 坑 5：第一次启动 Flask 卡死/超 10s 才就绪
 - **原因**：`import sklearn / jieba / pandas` 特别慢，VSCode 终端误判死锁
-- **解决方案**：已在 `modeling/cache.py` 做懒加载 + 3 段进度打印，启动≈0.5s。如果又慢了，查是不是新增了顶层 import 大库
+- **解决方案**：已在 `app.py` 对各重型模块做懒加载（首次访问相关路由才 import sklearn / jieba / pandas）+ 启动进度打印，启动≈0.5s。如果又慢了，查是不是新增了顶层 import 大库
 
 ### 坑 6：分页参数 /data?page=abc 导致 500
 - **原因**：未校验输入类型，直接 `int(page)` 抛 ValueError
@@ -268,7 +279,7 @@ git push                                 # develop 直接推
 1. **禁止直接在 main 分支改代码**。任何修改前先 `git status` 确认当前在 develop，不在就先 checkout。
 2. **新增 POST 路由/表单必须加 CSRF**。Flask-WTF，模板写 `{{ form.hidden_tag() }}`。
 3. **密钥/Token 绝对不能写进任何代码文件**。一律走 `.env` + `config.py` 常量。
-4. **测试按影响范围跑，不要无脑全量 180+**。原则：改 CSS/HTML 文案 → 只跑 `test_app_routes.py`（24 个路由冒烟）；改 `app.py` 逻辑 → 跑路由测试 + 相关模块测试；改分析/模型核心逻辑 → 跑对应测试文件。全量 `pytest tests/` 只在重大重构后或准备提交前跑一次。
+4. **测试按影响范围跑，不要无脑全量 233+**。原则：改 CSS/HTML 文案 → 只跑 `test_app_routes.py`（24 个路由冒烟）；改 `app.py` 逻辑 → 跑路由测试 + 相关模块测试；改分析/模型核心逻辑 → 跑对应测试文件。全量 `pytest tests/` 只在重大重构后或准备提交前跑一次。
 5. **敏感操作前先问**：删文件、合并 main、强制推送（`--force`）、数据库 DROP 表，必须先征得用户明确同意。
 6. **提交消息按 `type: description` 中文描述**。Commit 前先 `git diff --staged` 确认没有把 `.env` / `data.db` / `.qoder/` 加进去。
 7. **遇到图表/模板变更不生效**，优先提示用户查端口占用（坑 3），不要先怀疑代码。
@@ -287,6 +298,7 @@ git push                                 # develop 直接推
 
 ## 10. 最近变更记录（Changelog 摘要）
 
+- 2026-07-07 · `chore: 剖析清理 — 删除孤儿脚本 fix_duplicate_address.py 与残留缓存 salary_model.joblib、pytest_result.txt，并同步 CODEBUDDY.md 至真实项目结构（补 wordcloud_gen/resume_parser/4 个 modeling 特征/2 模板/3 测试）`
 - 2026-07-07 · `feat: 彻底移除 /ml 页面「薪资参考查询」板块（含 /salary-lookup 路由、查询表单、结果展示、导航项），/ml 聚焦聚类与多维薪资分析`
 - 2026-07-06 · `feat: advice 第三个 tab 从「技能需求分析」替换为「岗位匹配推荐」— 技能/学历/经验/城市四维度透明权重评分`
 - 2026-07-06 · `feat: /ml 页面方向卡片支持点击查看该方向岗位明细列表`
@@ -317,7 +329,7 @@ git push                                 # develop 直接推
 
 - **OS**: Windows 10/11，PowerShell
 - **IDE**: CodeBuddy（原名 Trae）
-- **工作目录**: `f:\Desktop\project1`
+- **工作目录**: `f:\Desktop\project1-enhanced`
 - **启动命令**: `python app.py`（venv）
 - **端口**: `http://127.0.0.1:5000`
 
@@ -358,7 +370,6 @@ app.py:986          → app.run() 启动配置 + Debug 开关逻辑
 config.py:43       → DEEPSEEK_API_KEY
 config.py:47-49    → QWEN_API_KEY / QWEN_API_URL / QWEN_MODEL
 config.py:53       → COLLECT_TOKEN
-modeling/cache.py  → 模型缓存单例（get/update/invalidate）
 modeling/job_clustering.py → run_clustering()（含 job_ids 字段，支持方向卡片跳转）
 analysis/jobtitle.py → classify() 跨行业 RULES（5层优先级:具体角色→级别→方向→职能→兜底）
 agent/agent_tools.py → query_jobs(联合搜索)、match_jobs(四维匹配推荐)、skill_demand_analysis、compare_jobs(技能差异)

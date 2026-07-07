@@ -862,8 +862,9 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
                 'suggestions': suggestions,
             })
 
-    # 按技能匹配百分比排序
-    gap_results.sort(key=lambda x: -x['skill_match_pct'])
+    # 按技能匹配百分比排序（None 视为 0）
+    gap_results.sort(key=lambda x: (-(x['skill_match_pct'] if x['skill_match_pct'] is not None else 0), x['id']))
+
     gap_results = gap_results[:10]
 
     # ---- 4. 总建议 ----

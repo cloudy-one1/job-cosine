@@ -4,7 +4,7 @@
 跟教材的主要区别:
 1. 数据库换成SQLite,不再需要Flask-SQLAlchemy这层ORM,
    直接用sqlite3做查询,跟项目里其他模块(region.py/jobtitle.py等)风格一致
-2. 首页不再触发"实时爬虫",数据采集(collect_data.py)和网站展示是分离的两步
+2. 首页不再触发"实时爬虫",数据采集(python_job_scraper.py)和网站展示是分离的两步
    ——这本身也是更合理的架构:数据采集可以独立、定期运行,
    网站只负责读取已采集好的数据并展示,不需要每次访问都现场爬一次
 3. 新增 /advice 路由,接入Agent模块
@@ -116,6 +116,7 @@ _job_similarity_cache = None        # 岗位相似度网络缓存
 _salary_curve_cache = None          # 薪资成长曲线缓存
 _edu_premium_cache = None           # 学历溢价分析缓存
 _conversations = {}                 # Agent 对话持久化: {chat_uuid: {question, answer, trace}}
+_review_store = {}                    # 简历审查结果持久化(体积大, 不进 cookie): {review_uuid: state}
 
 
 # --- 数据库迁移 ----------------------------------------------------------------
@@ -1051,7 +1052,9 @@ def interested():
 def advice():
     if request.method != 'POST':
         # GET: 支持清除操作
-        tool = request.args.get('tool', 'agent')
+        tool = request.args.get('tool', '').strip()
+        if tool not in ('agent', 'compare', 'match', 'review'):
+            tool = session.get('advice_active_tab', 'agent')
         if tool not in ('agent', 'compare', 'match', 'review'):
             tool = 'agent'
 
@@ -1069,11 +1072,14 @@ def advice():
             chat_id = session.pop('chat_id', None)
             if chat_id:
                 _conversations.pop(chat_id, None)
+            session.pop('advice_active_tab', None)
             return redirect(url_for('advice'))
 
         # 清除对比结果: /advice?clear_compare=1
         if request.args.get('clear_compare') == '1':
             session.pop('compare_state', None)
+            session.pop('compare_ai_analysis', None)
+            _compare_analysis_cache.clear()
             return redirect(url_for('advice'))
 
         # 清除匹配结果: /advice?clear_match=1
@@ -1082,56 +1088,52 @@ def advice():
             return redirect(url_for('advice'))
         # 清除简历审查结果: /advice?clear_review=1
         if request.args.get('clear_review') == '1':
-            session.pop('review_state', None)
+            _review_store.pop(session.pop('review_id', None), None)
             return redirect(url_for('advice'))
 
-        # 尝试从 session 恢复上一次对话状态
+        # 同时从 session 恢复所有 tab 的状态（非互斥，切换 tab 或顶部导航后仍可保留）
         chat_id = session.get('chat_id')
         agent_state = _conversations.get(chat_id) if chat_id else None
         compare_state = session.get('compare_state')
         match_state = session.get('match_state')
+        review_state = _review_store.get(session.get('review_id')) if session.get('review_id') else None
+        compare_ai = session.get('compare_ai_analysis')
+        if compare_ai and (time.time() - compare_ai.get('ts', 0)) >= _COMPARE_CACHE_TTL:
+            compare_ai = None
+            session.pop('compare_ai_analysis', None)
 
-        if agent_state:
-            return render_template('advice.html', active_tab=tool,
-                                   question=agent_state.get('question'),
-                                   answer=agent_state.get('answer'),
-                                   trace=agent_state.get('trace'),
-                                   critique=agent_state.get('critique', ''),
-                                   interested_jobs=interested_jobs,
-                                   restored_agent=True)
-        if compare_state:
-            return render_template('advice.html', active_tab='compare',
-                                   compare_result=compare_state.get('result'),
-                                   compare_a=compare_state.get('a'),
-                                   compare_b=compare_state.get('b'),
-                                   interested_jobs=interested_jobs,
-                                   restored_compare=True)
-        if match_state:
-            return render_template('advice.html', active_tab='match',
-                                   match_result=match_state.get('result'),
-                                   match_skills=match_state.get('skills'),
-                                   match_city=match_state.get('city'),
-                                   match_edu=match_state.get('edu'),
-                                   match_exper=match_state.get('exper'),
-                                   interested_jobs=interested_jobs,
-                                   match_interested_ids=match_state.get('target_job_ids'),
-                                   restored_match=True)
-
-        review_state = session.get('review_state')
-        if review_state:
-            return render_template('advice.html', active_tab='review',
-                                   review_result=review_state.get('result'),
-                                   review_text=review_state.get('text'),
-                                   review_city=review_state.get('city'),
-                                   review_category=review_state.get('category'),
-                                   interested_jobs=interested_jobs,
-                                   review_preselect_id=review_preselect_id,
-                                   review_interested_ids=review_state.get('target_job_ids'),
-                                   restored_review=True)
-
-        return render_template('advice.html', active_tab=tool,
-                               interested_jobs=interested_jobs,
-                               review_preselect_id=review_preselect_id)
+        return render_template(
+            'advice.html', active_tab=tool,
+            interested_jobs=interested_jobs,
+            review_preselect_id=review_preselect_id,
+            # Agent
+            question=agent_state.get('question') if agent_state else None,
+            answer=agent_state.get('answer') if agent_state else None,
+            data_context=agent_state.get('data_context') if agent_state else None,
+            restored_agent=bool(agent_state),
+            # 城市对比
+            compare_result=compare_state.get('result') if compare_state else None,
+            compare_a=compare_state.get('a') if compare_state else None,
+            compare_b=compare_state.get('b') if compare_state else None,
+            compare_ai_analysis=compare_ai.get('text') if compare_ai else None,
+            restored_compare=bool(compare_state),
+            # 岗位匹配
+            match_result=match_state.get('result') if match_state else None,
+            match_skills=match_state.get('skills') if match_state else None,
+            match_city=match_state.get('city') if match_state else None,
+            match_edu=match_state.get('edu') if match_state else None,
+            match_exper=match_state.get('exper') if match_state else None,
+            match_interested=bool(match_state.get('target_job_ids')) if match_state else False,
+            match_interested_ids=match_state.get('target_job_ids') if match_state else None,
+            restored_match=bool(match_state),
+            # 简历审查
+            review_result=review_state.get('result') if review_state else None,
+            review_text=review_state.get('text') if review_state else None,
+            review_city=review_state.get('city') if review_state else None,
+            review_category=review_state.get('category') if review_state else None,
+            review_interested_ids=review_state.get('target_job_ids') if review_state else None,
+            restored_review=bool(review_state),
+        )
 
     tool = request.form.get('tool', 'agent')
 
@@ -1156,10 +1158,11 @@ def advice():
         chat_id = str(uuid.uuid4())
         _conversations[chat_id] = {'question': question, 'answer': answer, 'data_context': data_context}
         session['chat_id'] = chat_id
+        session['advice_active_tab'] = 'agent'
         # 清理旧对比/技能结果（新对话后可能过时）
         session.pop('compare_state', None)
         session.pop('match_state', None)
-        session.pop('review_state', None)
+        _review_store.pop(session.pop('review_id', None), None)
 
         return render_template('advice.html', question=question, answer=answer,
                                data_context=data_context, active_tab='agent')
@@ -1180,9 +1183,10 @@ def advice():
 
         # 保存对比结果到 session
         session['compare_state'] = {'result': compare_result, 'a': a, 'b': b}
+        session['advice_active_tab'] = 'compare'
         # 重新对比 → 旧 AI 解读失效
-        global _compare_analysis_cache
         _compare_analysis_cache.clear()
+        session.pop('compare_ai_analysis', None)
 
         return render_template('advice.html', compare_result=compare_result,
                                compare_a=a, compare_b=b, active_tab='compare')
@@ -1225,6 +1229,7 @@ def advice():
             'exper': exper,
             'target_job_ids': target_job_ids,
         }
+        session['advice_active_tab'] = 'match'
 
         return render_template('advice.html', match_result=match_result,
                                match_skills=skills, match_city=city,
@@ -1283,13 +1288,16 @@ def advice():
                                    review_interested_ids=target_job_ids,
                                    active_tab='review')
 
-        session['review_state'] = {
+        review_id = str(uuid.uuid4())
+        _review_store[review_id] = {
             'result': review_result,
             'text': resume_text,
             'city': target_city,
             'category': target_category,
             'target_job_ids': target_job_ids,
         }
+        session['review_id'] = review_id
+        session['advice_active_tab'] = 'review'
 
         return render_template('advice.html', review_result=review_result,
                                review_text=resume_text, review_city=target_city,
@@ -1302,6 +1310,7 @@ def advice():
     return render_template('advice.html', error='未知工具类型', active_tab='agent')
 
 
+@csrf.exempt
 @app.route('/advice/compare/analyze', methods=['POST'])
 def advice_compare_analyze():
     """城市对比 AI 解读接口（基于真实对比数据调用 LLM，带 5 分钟服务端缓存）。"""
@@ -1375,6 +1384,7 @@ def advice_compare_analyze():
         ]
         analysis, _provider = call_llm_with_fallback(messages, deepseek_key=api_key)
         _compare_analysis_cache[cache_key] = (time.time(), analysis)
+        session['compare_ai_analysis'] = {'text': analysis, 'ts': time.time()}
         _logger.info('城市对比 AI 解读 provider=%s %s vs %s', _provider, a, b)
         return analysis
     except requests.exceptions.HTTPError as e:
@@ -1383,6 +1393,19 @@ def advice_compare_analyze():
         return _json.dumps({'error': msg}), 503
     except Exception as e:
         return _json.dumps({'error': f'AI 分析生成失败: {str(e)}'}), 500
+
+
+@csrf.exempt
+@app.route('/advice/active-tab', methods=['POST'])
+def advice_active_tab():
+    """前端切换 advice tab 时异步记录当前 active_tab，保证顶部导航切回后仍定位到该 tab。"""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    tab = (data.get('tab') or '').strip()
+    if tab in ('agent', 'compare', 'match', 'review'):
+        session['advice_active_tab'] = tab
+        return _json.dumps({'ok': True})
+    return _json.dumps({'error': 'invalid tab'}), 400
 
 
 # --- 模板全局变量注入 ------------------------------------------------------------

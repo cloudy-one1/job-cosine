@@ -534,7 +534,9 @@
         <button type="button" class="warm-btn" id="compareAiBtn" onclick="analyzeCompare()">🤖 AI 解读对比</button>
         <span id="compareAiLoading" style="display:none; color:var(--warm-ink-soft); font-size:13px; margin-left:10px;">⏳ AI 生成中…</span>
     </div>
-    <div id="compareAiCard" class="answer-card" style="display:none; white-space:pre-wrap;"></div>
+    <div id="compareAiCard" class="answer-card" style="{% if not compare_ai_analysis %}display:none;{% endif %} white-space:pre-wrap;">
+        {% if compare_ai_analysis %}{{ compare_ai_analysis }}{% endif %}
+    </div>
     <div id="compareAiError" class="warm-alert" style="display:none;"></div>
 
     {% endif %}
@@ -1017,6 +1019,12 @@ function switchTab(name) {
     document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
     document.querySelector('.pill-btn[data-tab="' + name + '"]').classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
+    // 同步当前 tab 到服务端 session，保证从顶部导航切回后仍定位在该 tab
+    fetch('/advice/active-tab', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tab: name})
+    }).catch(function(){});
 }
 
 // 复制 AI 优化简历
@@ -1099,7 +1107,12 @@ function analyzeCompare() {
     })
     .then(function(res) {
         if (res.ok) return res.text();
-        return res.json().then(function(d) { throw new Error(d.error || ('请求失败（' + res.status + '）')); });
+        return res.text().then(function(raw) {
+            var msg = raw;
+            try { var d = JSON.parse(raw); msg = d.error || raw; } catch (_) {}
+            if (msg.length > 200) msg = msg.substring(0, 200) + '…';
+            throw new Error(msg || ('请求失败（' + res.status + '）'));
+        });
     })
     .then(function(text) {
         card.textContent = text;

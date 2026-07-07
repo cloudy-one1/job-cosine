@@ -408,3 +408,115 @@ class TestCompareAIAnalyze:
         assert resp2.status_code == 200
         assert resp2.text == resp1.text
         assert calls['n'] == 1, "缓存命中时不应再次调用 LLM"
+
+        # 验证结果同时持久化到 session，页面刷新后可直接恢复
+        with client.session_transaction() as sess:
+            assert 'compare_ai_analysis' in sess
+            assert sess['compare_ai_analysis']['text'] == resp1.text
+
+
+# ============================================================
+# L-?: /advice 多 tab 状态保持
+# ============================================================
+class TestAdviceStatePersistence:
+    """验证 /advice 各 tab 的结果在 session 中独立保存，切回页面后同时恢复。"""
+
+    def test_active_tab_recorded_after_post(self, client):
+        """提交岗位匹配后，session 中应记录 active_tab 为 match。"""
+        # 用最小数据触发 match 分支并成功返回（空库时 match_jobs 可能无结果但不应抛异常）
+        resp = client.post('/advice', data={
+            'tool': 'match',
+            'skills': 'Python',
+            'city': '北京',
+            'edu': '本科',
+            'exper': '3-5年',
+        })
+        assert resp.status_code == 200
+        with client.session_transaction() as sess:
+            assert sess.get('advice_active_tab') == 'match'
+
+    def test_get_restores_last_active_tab(self, client):
+        """GET /advice 没有 ?tool 参数时，应恢复到 session 中记录的 active_tab。"""
+        with client.session_transaction() as sess:
+            sess['advice_active_tab'] = 'compare'
+        resp = client.get('/advice')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'id="tab-compare"' in html
+        # 当前激活的 tab 按钮应有 active 类
+        assert 'data-tab="compare"' in html and 'active' in html.split('data-tab="compare"')[0].rsplit('class="', 1)[-1]
+
+    def test_get_with_tool_param_overrides_session(self, client):
+        """URL 带 ?tool=review 时，应优先显示 review tab。"""
+        with client.session_transaction() as sess:
+            sess['advice_active_tab'] = 'match'
+        resp = client.get('/advice?tool=review')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'id="tab-review"' in html
+
+    def test_multiple_tab_states_restored_together(self, client, monkeypatch):
+        """同时存在 compare、match、review 状态时，GET 应一次性恢复所有 tab。"""
+        monkeypatch.setattr('config.DEEPSEEK_API_KEY', 'test-key')
+
+        # 构造多 tab 状态
+        with client.session_transaction() as sess:
+            sess['compare_state'] = {
+                'result': {
+                    'compare_type': 'city',
+                    'a': {'value': '北京', 'count': 1, 'avg_salary_k': 15.0,
+                          'min_salary_k': 10.0, 'max_salary_k': 20.0,
+                          'top_edu': [], 'top_exper': []},
+                    'b': {'value': '上海', 'count': 1, 'avg_salary_k': 18.0,
+                          'min_salary_k': 12.0, 'max_salary_k': 24.0,
+                          'top_edu': [], 'top_exper': []},
+                    'skill_diff': {},
+                },
+                'a': '北京', 'b': '上海',
+            }
+            sess['match_state'] = {
+                'result': {'total_matched': 0, 'top_matches': [], 'thresholds': {}},
+                'skills': 'Python', 'city': '北京', 'edu': '本科', 'exper': '3-5年',
+                'target_job_ids': None,
+            }
+            from app import _review_store
+            _review_id = 'test-review-id'
+            _review_store[_review_id] = {
+                'result': {
+                    'extracted': {'skills': ['Python'], 'edu': '本科', 'exper': '3-5年'},
+                    'summary': '测试总结', 'job_gaps': [],
+                },
+                'text': '测试简历', 'city': '北京', 'category': '后端',
+                'target_job_ids': None,
+            }
+            sess['review_id'] = _review_id
+            sess['advice_active_tab'] = 'compare'
+
+        resp = client.get('/advice')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        # 三个 tab 的内容都应出现在页面中
+        assert '城市对比' in html
+        assert '岗位匹配推荐' in html
+        assert '简历审查' in html
+        # 当前 active tab 是 compare
+        assert 'id="tab-compare"' in html
+
+    def test_active_tab_api_updates_session(self, client):
+        """前端切 tab 时 POST /advice/active-tab 应更新 session。"""
+        resp = client.post('/advice/active-tab',
+                           json={'tab': 'review'},
+                           content_type='application/json')
+        assert resp.status_code == 200
+        with client.session_transaction() as sess:
+            assert sess.get('advice_active_tab') == 'review'
+
+    def test_active_tab_api_rejects_invalid_tab(self, client):
+        """非法 tab 参数应返回 400，且不污染 session。"""
+        resp = client.post('/advice/active-tab',
+                           json={'tab': 'xxx'},
+                           content_type='application/json')
+        assert resp.status_code == 400
+
+
+

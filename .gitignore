@@ -55,6 +55,7 @@ node_modules/
 venv/
 .debug
 test_output.txt
+pytest_result.txt
 
 .DS_Store
 Thumbs.db

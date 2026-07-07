@@ -291,6 +291,27 @@ class TestReviewResume:
         ids = [g['id'] for g in result['job_gaps']]
         assert len(ids) >= 2, "全表兜底应命中多个岗位"
 
+    def test_job_with_no_extractable_skills_does_not_crash(self, temp_db, monkeypatch):
+        """目标岗位 JD 未提取到任何技能关键词时，skill_match_pct 为 None 不应导致排序报错。"""
+        import config
+        import sqlite3
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
+        from agent.agent_tools import review_resume
+        # 在临时 DB 插入一条无技能关键词但有学历/经验要求的岗位
+        conn = sqlite3.connect(temp_db)
+        conn.execute(
+            "INSERT INTO data (post, address, salary_min, salary_max, edu, exper, content, job_url)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            ('行政助理', '北京-朝阳区', 5, 8, '本科', '1-3年', '负责日常行政和文档管理', 'https://jobs.51job.com/test/11.html')
+        )
+        conn.commit()
+        conn.close()
+        result = review_resume('本科，1年工作经验，熟悉文档处理', target_city='北京')
+        assert 'job_gaps' in result
+        assert 'error' not in result
+
+
 
 # ============================================================
 # match_jobs — target_job_ids 收藏岗位匹配
