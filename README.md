@@ -6,16 +6,21 @@
 
 | 模块 | 功能 | 技术 |
 |------|------|------|
-| 数据采集 | 51job 实时职位抓取 | Playwright (Chrome 无头) + stealth 对抗 WAF |
-| 数据清洗 | 薪资解析、地址去重 | 正则 + 规则引擎 |
-| 描述性统计 | 薪资/学历/经验/城市分布 | Pandas + SQLite |
-| 职位聚类 | 自动发现职位类别结构 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
-| 多维薪资分析 | 技能热力图、经验-薪资曲线、学历溢价 | Pandas + NumPy |
-| 技能词云 | 51job官方标签+标题分词 双源加权词频 | Jieba + 51job jobTags |
-| 技能需求分析 | 任一技能的市场需求、薪资、城市分布、共现技能 | SQL 搜索 + 技能正则提取 |
-| AI 图表解读 | AI 实时分析图表数据，点击即生成 | AJAX + agent_core.call_llm_with_fallback (DeepSeek → 千问) |
-| AI Agent | 预加载数据概览+单次LLM调用 | DeepSeek/千问双模型 fallback + 结构化双段式输出 |
-| Docker 部署 | 一键容器化运行 | Docker + docker-compose |
+| 数据采集 | 51job 实时职位抓取（多城市×5 页上限） | Playwright (Chrome 无头) + stealth 对抗 WAF |
+| 数据清洗 | 薪资解析、地址去重、jobTags 关键字提取 | 正则 + 规则引擎 |
+| 描述性统计 | 薪资/学历/经验/城市分布 + 交叉分析 | Pandas + SQLite |
+| 职位聚类 | 自动发现职位方向，支持点击簇卡片查看明细 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
+| 多维薪资分析 | 技能供需热力图、经验-薪资成长曲线、学历溢价分析、岗位相似度网络 | Pandas + NumPy + 余弦相似度 |
+| 技能词云 | 仅从 51job 官方 jobTags 提取，中国地图 mask 渲染 | 同义词归一化 + 停用词白名单过滤 |
+| AI 图表解读 | 6 个图表区段点击即 AI 分析（服务端 5 分钟缓存） | AJAX + call_llm_with_fallback (DeepSeek → 千问) |
+| AI 建模解读 | 聚类/热力图/相似度/薪资曲线/学历溢价 5 维度 AI 解读 | 同上 + 各模块数据拼装 |
+| AI Agent 问答 | 预加载 DB 概览 → 单次 LLM → 双段式输出（数据结论+普适建议） | DeepSeek/千问双模型 fallback |
+| 城市对比 | 两城并排对比 + 技能差异 + AI 解读 | agent_tools.compare_jobs + LLM |
+| 岗位匹配推荐 | 六维度透明评分（技能35%+城市15%+学历15%+经验15%+薪资10%+真实性10%） | 规则驱动 + Critic 校验 + Gap 分析 |
+| 简历审查优化 | 技能提取→岗位Gap→双Agent深度分析（Critic诊断+Optimizer重写） | resume_parser (PDF/DOCX) + LLM 双 Agent |
+| 岗位收藏 | 感兴趣岗位清单，支持跨页面勾选、全选/清空、匹配时限制范围 | session 存储，零数据库迁移 |
+| 预热机制 | 首页静默 AJAX 预计算全部图表+模型，页面秒开 | /api/warmup (CSRF exempt) |
+| Docker 部署 | 一键容器化运行（爬虫宿主机、Web容器内） | Docker + docker-compose + volume 热更新 |
 
 > **容错设计**：空数据库首次启动不会崩溃，所有页面友好提示"请先采集数据"，无需预先准备任何数据。
 >
@@ -26,10 +31,9 @@
 > - URL 参数自动转义，防特殊字符截断
 > - Agent API 调用带指数退避重试，网络抖动不直接失败
 > - 前端异常信息脱敏，不泄露内部路径和堆栈
-> - **全站点 CSRF 防护**（Flask-WTF）：3 处 POST 表单强制校验 token，防跨站伪造提交
+> - **全站点 CSRF 防护**（Flask-WTF）：所有 POST 路由强制校验 token（`/api/warmup` 除外），防跨站伪造提交
 > - **secret_key 安全注入**：从 `FLASK_SECRET` 环境变量读取，未设时使用 `os.urandom(32)` 随机值
-> - **debug/host 默认关闭**：`FLASK_DEBUG` 默认 0，`FLASK_HOST` 默认 `127.0.0.1`，需显式开启才对外暴露
-> - 新增 `tests/test_app_routes.py`（10 个用例）覆盖安全修复的回归测试
+> - **debug/host 默认关闭**：无 `.debug` 文件时 Debug=off + reloader=off，`FLASK_HOST` 默认 `127.0.0.1`
 > - **采集口令保护**：`.env` 配置 `COLLECT_TOKEN` 后，采集需输入口令，防误操作清空数据
 > - **速率限制**（Flask-Limiter）：全局 50/小时 + 采集接口 5/小时，防滥用
 > - **SQLite WAL 模式**：启动时自动启用，并发读不再被写操作锁库
@@ -38,10 +42,11 @@
 >
 > **工程质量**（代码健壮性提升）：
 > - **数据库连接管理**：Flask `g` 对象复用连接 + `teardown_appcontext` 自动关闭，避免连接泄漏
-> - **模型持久化**：joblib 缓存聚类/回归模型到磁盘 (`cache/`)，服务器重启免重训
+> - **模型持久化**：joblib 缓存聚类模型到磁盘 (`cache/`)，服务器重启免重训
 > - **日志系统**：`logging` + `RotatingFileHandler` 替代 `print`，分级输出到 `logs/app.log`（5MB 旋转 × 3 备份）
-> - **启动性能优化**：sklearn / jieba / pandas 懒加载，Flask 秒启不再误判卡死；必要时预导入关键链路并打印进度提示
-> - **Debug 机制修复**：彻底放弃 `FLASK_DEBUG` 环境变量，改为根目录显式 **`.debug` 文件开关**，彻底根治环境变量残留导致 reloader 伪装退出、端口被抢占等诡异问题
+> - **启动性能优化**：sklearn / jieba / pandas 懒加载，Flask 秒启不再误判卡死
+> - **预热机制**：首页 `/api/warmup` 静默预计算全部图表+模型+建模模块，后续页面秒开
+> - **Debug 机制**：根目录 `.debug` 文件开关，根治环境变量残留导致 reloader 伪装退出
 
 ## 项目结构
 
@@ -56,46 +61,53 @@ project1/
 │   └── fix_duplicate_address.py — 地址去重与清洗
 │
 ├── analysis/                 # 分析层：统计 + 可视化数据生成
-│   ├── xinzi.py                 — 薪资分布统计
+│   ├── xinzi.py                 — 薪资分段统计 (8 档/千元)
 │   ├── xueli.py                 — 学历分布统计
 │   ├── jinyan.py                — 经验分布统计
 │   ├── region.py                — 城市分布统计 (含 extract_city 共享工具)
-│   ├── cross.py                 — 交叉分析 (薪资 vs 经验/学历)
-│   └── jobtitle.py              — 职位标题规则分类 (25行业 100+规则,数据驱动)
+│   ├── cross.py                 — 交叉分析 (薪资 vs 经验 / 薪资 vs 学历)
+│   ├── jobtitle.py              — 职位标题规则分类 (25行业 100+规则,5层优先级)
+│   └── wordcloud_gen.py         — 技能词云 (51job jobTags + 同义词归一化 + 中国地图 mask)
 │
-├── modeling/                 # 模型层：机器学习
-│   ├── job_clustering.py        — KMeans 无监督聚类 (自动选择最佳 k)
-│   ├── salary_predict.py        — 薪资统计查询 (中位数/均值/分位数)
-│   ├── edu_premium.py           — 学历溢价分析 (硕士vs本科vs大专薪资差)
-│   ├── salary_curve.py          — 薪资成长曲线 (经验-薪资趋势)
-│   ├── job_similarity.py        — 岗位相似度网络 (余弦相似度,转型建议)
-│   └── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵)
+├── modeling/                 # 模型层：机器学习 + 多维分析
+│   ├── job_clustering.py        — KMeans 无监督聚类 (TF-IDF 技能向量 + 自动 k 选择 + 轮廓系数)
+│   ├── salary_predict.py        — 薪资统计查询 (DB 驱动: 中位数/均值/分位数,非模型预测)
+│   ├── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵,keywords fallback Jieba)
+│   ├── job_similarity.py        — 岗位相似度网络 (余弦相似度,转型路径建议)
+│   ├── salary_curve.py          — 薪资成长曲线 (经验-薪资趋势,按方向/city分组)
+│   └── edu_premium.py           — 学历溢价分析 (硕士vs本科vs大专,按城市+方向分层)
 │
 ├── agent/                    # Agent 层：大模型对话
-│   ├── agent_core.py            — 预加载DB概览+单次LLM调用 + DeepSeek/千问双模型 fallback
-│   └── agent_tools.py           — 工具注册与查询函数 (query_jobs/match_jobs/review_resume/compare_jobs/skill_demand_analysis)
-│   └── resume_parser.py         — 简历文件解析 (PDF/DOCX → 纯文本)
+│   ├── agent_core.py            — LLM 调用封装 (DeepSeek/千问双模型 fallback + 指数退避重试)
+│   ├── agent_tools.py           — 10 个工具函数: query_jobs / skill_demand_analysis / category_overview /
+│   │                               city_overview / edu_overview / exper_overview / predict_salary /
+│   │                               compare_jobs / match_jobs(六维度) / review_resume(双Agent)
+│   └── resume_parser.py         — 简历文件解析 (PDF→PyPDF2 / DOCX→python-docx → 纯文本)
 │
 ├── templates/                # HTML 模板 (10 个页面, ECharts 可视化)
-│   ├── base.html, input.html, data.html
-│   ├── h.html (薪资/学历/经验/城市分布图+交叉分析+技能词云+AI图表解读)
-│   ├── ml.html (规则vs聚类对比图+城市分布图+方向卡片岗位明细入口)
-│   ├── cluster_jobs.html (点击 ml.html 方向卡片后展示该簇岗位列表)
-│   ├── advice.html (暖色调重设计:药丸导航+卡片布局+4-tab:Agent/城市对比/岗位匹配/简历审查)
-│   ├── interested.html (感兴趣岗位收藏页,支持全选/清空/定位/对比清单)
-│   ├── collect.html
+│   ├── base.html                 — 公共基础模板 (导航栏 + 收藏计数 Badge)
+│   ├── input.html                — 首页: 关键词输入 + 省市联动选择器 + 采集入口
+│   ├── data.html                 — 数据总览: 分页列表 + 城市/JD 精确搜索 + 岗位悬停放大
+│   ├── job_detail.html           — 岗位详情: 完整信息 + 51job 原文跳转 + 收藏按钮
+│   ├── h.html                    — 图表页: 6 区段(薪资/学历/经验/城市/词云/交叉) + AI 解读
+│   ├── ml.html                   — 建模页: 聚类方向卡片 + 热力图 + 相似度 + 薪资曲线 + 学历溢价
+│   ├── cluster_jobs.html         — 方向岗位明细列表 (点击 ml 方向卡片进入)
+│   ├── advice.html               — Agent 页: 4-tab(Agent问答/城市对比/岗位匹配/简历审查)
+│   ├── interested.html           — 收藏清单: 全选/清空/批量定位/对比清单
+│   └── collect.html              — 采集管理: 关键词+城市+页数+排序+采集口令+结果展示
 │
-├── tests/                    # 测试 (226 个用例, 全部通过)
-│   ├── test_app_routes.py       — 路由与安全回归测试
-│   ├── test_advice_route.py     — advice 功能测试
-│   ├── test_agent_loop.py       — Agent 逻辑集成测试
-│   ├── test_agent_tools.py      — Agent 工具函数测试
-│   ├── test_cross.py            — 交叉分析函数测试
+├── tests/                    # 测试 (226 个用例, 全部通过, 覆盖率 > 90%)
+│   ├── test_app_routes.py       — 路由与安全回归测试 (CSRF/限流/分页/输入校验)
+│   ├── test_advice_route.py     — advice 4-tab 回归测试 (Agent/Compare/Match/Review)
+│   ├── test_agent_loop.py       — Agent 核心逻辑集成测试
+│   ├── test_agent_tools.py      — Agent 工具函数测试 (query_jobs/match_jobs/review_resume等)
+│   ├── test_cross.py            — 交叉分析函数测试 (salary_vs_exper/salary_vs_edu)
 │   ├── test_python_job_scraper.py — 采集参数构建单元测试
 │   ├── test_salary_parser.py    — 薪资解析全覆盖测试
-│   ├── test_analysis_functions.py — classify/extract_city/tokenize
+│   ├── test_analysis_functions.py — classify/extract_city/tokenize 分析函数测试
+│   ├── test_job_detail.py       — 岗位详情页回归测试
 │   ├── test_model_logic.py      — 聚类/预测/缓存模型核心逻辑测试
-│   └── test_modeling_features.py — 新增模块测试 (学历溢价/薪资曲线/相似度/热力图)
+│   └── test_modeling_features.py — 建模模块测试 (学历溢价/薪资曲线/相似度/热力图)
 │
 ├── Dockerfile                # Docker 镜像构建
 ├── docker-compose.yml        # Docker 一键部署
@@ -154,11 +166,15 @@ python app.py
 # 终端会自动打印 本地访问(http://127.0.0.1:5000) + 同局域网访问地址
 
 # 4. 命令行独立运行各模块验证
-python -c "from analysis.xinzi import salary_distribution; print(salary_distribution())"
+python -c "from analysis.xinzi import xinzi; print(xinzi())"
 python -c "from analysis.jobtitle import classify_batch; print(classify_batch())"
+python -c "from analysis.wordcloud_gen import generate_wordcloud_data; print(generate_wordcloud_data(10))"
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
-python -c "from modeling.salary_predict import lookup_salary_range; print(lookup_salary_range('北京','后端开发'))"
-python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
+python -c "from modeling.skill_heatmap import compute_skill_heatmap; print(compute_skill_heatmap())"
+python -c "from modeling.salary_curve import compute_salary_curve; print(compute_salary_curve())"
+python -c "from modeling.edu_premium import compute_edu_premium; print(compute_edu_premium())"
+python -c "from agent.agent_tools import match_jobs; print(match_jobs('Python,Django','北京','本科','1-3年'))"
+python -c "from agent.resume_parser import extract_text; print(extract_text(open('resume.pdf','rb').read(),'resume.pdf'))"
 python -m pytest tests/ -v   # 运行全部测试 (226 个用例, 全部通过)
 ```
 
@@ -213,14 +229,23 @@ python app.py                      # 访问 http://<服务器IP>:5000
 
 ## Web 页面说明
 
-| 路由 | 功能 | 模板文件 |
-|------|------|---------|
-| `/` | 首页（关键词 + 城市输入） | `input.html` |
-| `/list` | 职位列表（分页 + 筛选） | `data.html` |
-| `/job/<id>` | 职位详情 + 51job原文跳转 | `job_detail.html` |
-| `/chart` | 薪资/学历/经验分布图 | `h.html` |
-| `/ml` | 聚类结果 + 多维薪资分析 | `ml.html` |
-| `/advice` | AI Agent 问答 + 城市对比 + 技能需求分析（3-tab） | `advice.html` |
-| `/collect` | 触发实时数据采集 | `collect.html` |
+| 路由 | 方法 | 功能 | 模板文件 |
+|------|------|------|---------|
+| `/` | GET | 首页（关键词 + 城市输入 + 省-市联动） | `input.html` |
+| `/api/warmup` | GET/POST | 静默预热：预计算全部图表+聚类+建模模块 | (JSON) |
+| `/list` | GET | 职位列表（分页 12/页 + 精确匹配筛选） | `data.html` |
+| `/job/<id>` | GET | 职位详情页（含 51job 原文链接跳转） | `job_detail.html` |
+| `/chart[/<section>]` | GET | 图表分析页（6 区段：城市/薪资/学历/经验/词云/交叉） | `h.html` |
+| `/chart/analyze` | POST | AI 图表解读（6 区段，服务端 5 分钟缓存） | (JSON) |
+| `/ml` | GET | 聚类建模页（方向卡片 + 热力图 + 相似度 + 薪资曲线 + 学历溢价） | `ml.html` |
+| `/ml/analyze` | POST | AI 建模解读（5 维度，服务端 2 分钟缓存） | (JSON) |
+| `/ml/cluster/<id>` | GET | 方向岗位明细列表（点击 ml 方向卡片进入） | `cluster_jobs.html` |
+| `/advice` | GET/POST | AI Agent 问答 + 城市对比 + 岗位匹配 + 简历审查（4-tab） | `advice.html` |
+| `/advice/compare/analyze` | POST | 城市对比 AI 解读（5 分钟缓存） | (JSON) |
+| `/interested` | GET | 感兴趣岗位收藏清单（支持全选/清空/对比） | `interested.html` |
+| `/toggle_interest` | POST | AJAX 切换岗位收藏状态（需 CSRF token） | (JSON) |
+| `/collect` | GET/POST | 数据采集管理（5 次/小时限流 + 可选口令保护） | `collect.html` |
+
+> 共 14 个路由。JSON 接口由前端 AJAX 调用，不直接渲染页面。所有 POST 路由均受 CSRF 保护。`/collect` 单独限流 5 次/小时。
 
 <!-- 变更记录见 git log，或 CODEBUDDY.md 第 10 节 -->
