@@ -308,7 +308,8 @@ def _gap_analysis(user_skills: list, job_text: str, matched: list) -> list:
     return [s for s, _ in missing[:5]]
 
 
-def match_jobs(skills: str = '', city: str = '', edu: str = '', exper: str = '') -> dict:
+def match_jobs(skills: str = '', city: str = '', edu: str = '', exper: str = '',
+               target_job_ids: list = None) -> dict:
     """岗位匹配推荐 v2 — 参考 career-ops-cn / Job-Application-Agent / ai-job-search / JobSpy。
 
     六维度透明评分 (权重固定, 规则驱动, 不依赖 LLM):
@@ -329,6 +330,7 @@ def match_jobs(skills: str = '', city: str = '', edu: str = '', exper: str = '')
         city:   期望城市，如 '北京'
         edu:    学历，如 '本科'、'大专'、'硕士'
         exper:  经验，如 '1年'、'3-5年'、'应届'
+        target_job_ids: 可选, 仅在这些岗位 id 集合内做匹配评分 (默认 None=全表匹配)
     """
     user_skills = [s.strip().lower()
                    for s in skills.replace('、', ',').replace('，', ',').split(',')
@@ -336,9 +338,18 @@ def match_jobs(skills: str = '', city: str = '', edu: str = '', exper: str = '')
 
     db = _connect()
     cursor = db.cursor()
-    cursor.execute(
-        "SELECT id, post, address, salary_min, salary_max, edu, exper, content, job_url FROM data"
-    )
+    if target_job_ids:
+        ids = [int(x) for x in target_job_ids if str(x).isdecimal() and int(x) > 0]
+        placeholders = ','.join('?' * len(ids)) if ids else 'NULL'
+        cursor.execute(
+            f"SELECT id, post, address, salary_min, salary_max, edu, exper, content, job_url "
+            f"FROM data WHERE id IN ({placeholders})",
+            ids,
+        )
+    else:
+        cursor.execute(
+            "SELECT id, post, address, salary_min, salary_max, edu, exper, content, job_url FROM data"
+        )
     rows = cursor.fetchall()
     db.close()
 
@@ -692,7 +703,8 @@ def compare_jobs(dim_type: str, a: str, b: str) -> dict:
 
 
 
-def review_resume(resume_text: str, target_city: str = '', target_category: str = '') -> dict:
+def review_resume(resume_text: str, target_city: str = '', target_category: str = '',
+                  target_job_ids: list = None) -> dict:
     """简历审查与优化 — 参考 Job-Application-Agent 的简历-岗位对比模式。
 
     1. 从简历文本中结构化提取技能、学历、经验年限
@@ -704,6 +716,7 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
         resume_text: 简历全文(自由文本)
         target_city: 可选,期望工作城市
         target_category: 可选,目标职位类别(如'后端开发')
+        target_job_ids: 可选,仅针对这些具体岗位 id 的 JD 做 Gap 分析(优先级最高)
 
     Returns:
         dict: 含 extracted(提取画像), job_gaps(逐岗位Gap), summary(总建议)
@@ -740,7 +753,12 @@ def review_resume(resume_text: str, target_city: str = '', target_category: str 
     cursor = db.cursor()
     query_sql = "SELECT id, post, address, salary_min, salary_max, edu, exper, content, job_url FROM data WHERE 1=1"
     params = []
-    if target_city:
+    if target_job_ids:
+        ids = [int(x) for x in target_job_ids if str(x).isdecimal() and int(x) > 0]
+        placeholders = ','.join('?' * len(ids)) if ids else 'NULL'
+        query_sql += f" AND id IN ({placeholders})"
+        params.extend(ids)
+    elif target_city:
         query_sql += " AND address LIKE ?"
         params.append(f'%{target_city}%')
     if target_category:
@@ -996,11 +1014,11 @@ TOOLS = {
     },
     'match_jobs': {
         'func': match_jobs,
-        'description': '岗位匹配推荐:根据用户技能、期望城市、学历、经验,六维度综合评分(技能35%+城市15%+学历15%+经验15%+薪资10%+岗位真实性10%),输出1-5分制+推荐等级+Gap缺失技能。参数: skills (逗号分隔技能), city (可选), edu (可选学历), exper (可选经验)。例如 match_jobs("Python,Django","北京","本科","1-3年")。',
+        'description': '岗位匹配推荐:根据用户技能、期望城市、学历、经验,六维度综合评分(技能35%+城市15%+学历15%+经验15%+薪资10%+岗位真实性10%),输出1-5分制+推荐等级+Gap缺失技能。参数: skills (逗号分隔技能), city (可选), edu (可选学历), exper (可选经验), target_job_ids (可选,仅在这些岗位id内匹配,默认全表)。例如 match_jobs("Python,Django","北京","本科","1-3年")。',
     },
     'review_resume': {
         'func': review_resume,
-        'description': '简历审查与优化:结构化提取简历中的技能、学历、经验,与数据库中匹配岗位做差距分析,输出逐岗位的技能缺失、学历/经验差距及简历优化建议。参数: resume_text (简历全文,字符串), target_city (可选,期望城市), target_category (可选,目标职位类别)。例如 review_resume("掌握Python和Django...","北京","后端开发")。',
+        'description': '简历审查与优化:结构化提取简历中的技能、学历、经验,与数据库中匹配岗位做差距分析,输出逐岗位的技能缺失、学历/经验差距及简历优化建议。参数: resume_text (简历全文,字符串), target_city (可选,期望城市), target_category (可选,目标职位类别), target_job_ids (可选,仅针对这些具体岗位id的JD做Gap分析,优先级最高)。例如 review_resume("掌握Python和Django...","北京","后端开发")。',
     },
 
 }

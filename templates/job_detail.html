@@ -36,6 +36,11 @@
             <a href="{{ url_for('list_data') }}" class="btn btn-default" style="text-decoration:none; font-size:14px;">
                 ← 返回列表
             </a>
+            <button type="button" id="detail-interest-btn"
+                    class="interest-btn{% if job.id in session.get('interested_jobs', []) %} interested{% endif %}"
+                    onclick="toggleInterest({{ job.id }}, this)">
+                <span class="interest-label">{{ '已收藏' if job.id in session.get('interested_jobs', []) else '感兴趣' }}</span>
+            </button>
             {% if job.job_url %}
             <a href="{{ job.job_url }}" target="_blank" class="btn btn-info btn-detail" style="text-decoration:none; font-size:14px;">
                 🔗 查看详情
@@ -85,5 +90,34 @@
     </p>
 </div>
 {% endif %}
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
+
+<script>
+function toggleInterest(jobId, btn) {
+    var token = document.getElementById('csrf-token').value;
+    fetch('/toggle_interest', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'job_id=' + encodeURIComponent(jobId)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (!d || d.error) return;
+        btn.classList.toggle('interested', d.interested);
+        var label = btn.querySelector('.interest-label');
+        if (label) label.textContent = d.interested ? '已收藏' : '感兴趣';
+        var badge = document.getElementById('interested-badge');
+        if (badge) {
+            badge.textContent = d.count;
+            badge.style.display = d.count > 0 ? 'inline-flex' : 'none';
+        }
+    })
+    .catch(function () {});
+}
+</script>
 
 {% endblock %}

@@ -221,6 +221,20 @@
         background: #F0FDF4; border-color: #86EFAC; color: #166534;
     }
 
+    /* ---------- 收藏岗位提示横幅 ---------- */
+    .warm-banner{
+        background: linear-gradient(135deg, rgba(224,123,76,0.10), rgba(217,122,46,0.06));
+        border:1.5px solid var(--warm-primary);
+        border-radius:14px; padding:14px 20px; color:var(--warm-ink);
+        font-size:14px; margin:16px 0 4px;
+        animation: fadeUp .5s ease both;
+    }
+    .warm-banner a{
+        color:var(--warm-primary); font-weight:600; margin-left:6px;
+        text-decoration:underline;
+    }
+    .warm-banner a:hover{ opacity:.7; }
+
     /* ---------- Skill tags ---------- */
     .skill-tag {
         display: inline-block; background: var(--warm-primary-light);
@@ -513,6 +527,16 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- AI 解读区块（仅在对比结果存在时显示） -->
+    <div class="divider-text"><span>AI 洞察</span></div>
+    <div style="margin-bottom:16px;">
+        <button type="button" class="warm-btn" id="compareAiBtn" onclick="analyzeCompare()">🤖 AI 解读对比</button>
+        <span id="compareAiLoading" style="display:none; color:var(--warm-ink-soft); font-size:13px; margin-left:10px;">⏳ AI 生成中…</span>
+    </div>
+    <div id="compareAiCard" class="answer-card" style="display:none; white-space:pre-wrap;"></div>
+    <div id="compareAiError" class="warm-alert" style="display:none;"></div>
+
     {% endif %}
 
 </div>
@@ -581,6 +605,22 @@
                     </div>
                 </div>
 
+                <!-- 收藏岗位匹配开关（可选，默认不勾选 = 原全库匹配） -->
+                {% if interested_jobs %}
+                <div style="background: var(--warm-primary-light); border:1px solid var(--warm-line); border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="match_interested" name="match_interested" value="on"
+                           {% if match_interested_ids or match_interested %}checked{% endif %}
+                           style="width:18px; height:18px; accent-color: var(--warm-primary); cursor:pointer;">
+                    <label for="match_interested" style="font-size:14px; color:var(--warm-ink); cursor:pointer; margin:0;">
+                        仅在我感兴趣的 <strong>{{ interested_jobs|length }}</strong> 个岗位中匹配
+                    </label>
+                </div>
+                {% else %}
+                <p style="font-size:13px; color:var(--warm-ink-soft); margin:0;">
+                    💡 在「数据展示」页点击岗位「感兴趣」后，可在此仅针对收藏岗位做匹配。
+                </p>
+                {% endif %}
+
                 <div style="display: flex; justify-content: center; padding-top: 4px;">
                     <button type="submit" class="warm-btn">开始匹配</button>
                 </div>
@@ -593,6 +633,12 @@
     {% endif %}
 
     {% if match_result %}
+    {% if match_interested_ids %}
+    <div class="warm-banner">
+        🎯 以下结果<strong>仅在你感兴趣的 {{ match_interested_ids|length }} 个岗位</strong>中匹配得出。
+        <a href="/advice?clear_match=1">清除</a>
+    </div>
+    {% endif %}
     <div class="divider-text"><span>匹配结果 · 共 {{ match_result.total_matched }} 个岗位，展示匹配度最高的 Top 10</span></div>
 
     <!-- 阈值分布摘要 -->
@@ -721,6 +767,24 @@
         <strong>粘贴文本</strong>或<strong>上传简历文件</strong>（PDF / Word），系统会<strong>结构化提取</strong>你的技能、学历、经验，并与数据库中的真实岗位 JD 做<strong>逐岗位 Gap 分析</strong>，输出简历优化建议。</p>
     </p>
 
+    {% if interested_jobs %}
+    <div class="warm-card" style="border-left:4px solid var(--warm-primary); padding:18px 22px;">
+        <div style="font-size:14px; font-weight:600; color:var(--warm-ink); margin-bottom:4px;">我感兴趣的岗位（可选）</div>
+        <p style="font-size:12.5px; color:var(--warm-ink-soft); margin:0 0 10px;">勾选具体岗位，仅针对这些 JD 做 Gap 分析；不勾选则按城市 / 类别匹配。</p>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:200px; overflow-y:auto;">
+            {% for j in interested_jobs %}
+            <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--warm-ink); cursor:pointer; padding:6px 8px; border-radius:8px;">
+                <input type="checkbox" name="target_job_ids" value="{{ j.id }}"
+                       {% if review_interested_ids is not none and j.id in review_interested_ids %}checked{% elif review_interested_ids is none and (review_preselect_id is none or review_preselect_id == j.id) %}checked{% endif %}
+                       style="width:16px; height:16px; accent-color:var(--warm-primary);">
+                <span>{{ j.title }}</span>
+                <span style="color:var(--warm-ink-soft); font-size:12px;">· {{ j.city }} · {{ j.salary_k }}k</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="warm-card">
         <div class="warm-card-header">
             <div class="warm-card-icon">📄</div>
@@ -783,6 +847,12 @@
     {% endif %}
 
     {% if review_result %}
+    {% if review_interested_ids %}
+    <div class="warm-banner">
+        🎯 以下 Gap 分析<strong>仅针对你选中的 {{ review_interested_ids|length }} 个岗位</strong>。
+        <a href="/advice?clear_review=1">清除</a>
+    </div>
+    {% endif %}
     <!-- 提取画像 -->
     {% set ext = review_result.extracted %}
     <div class="divider-text"><span>简历提取画像</span></div>
@@ -1012,6 +1082,39 @@ function onFileSelected(input) {
         }
     });
 })();
+// 城市对比 AI 解读
+function analyzeCompare() {
+    var btn = document.getElementById('compareAiBtn');
+    var loading = document.getElementById('compareAiLoading');
+    var card = document.getElementById('compareAiCard');
+    var err = document.getElementById('compareAiError');
+    btn.disabled = true;
+    loading.style.display = 'inline';
+    card.style.display = 'none';
+    err.style.display = 'none';
+    fetch('/advice/compare/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: '{}'
+    })
+    .then(function(res) {
+        if (res.ok) return res.text();
+        return res.json().then(function(d) { throw new Error(d.error || ('请求失败（' + res.status + '）')); });
+    })
+    .then(function(text) {
+        card.textContent = text;
+        card.style.display = 'block';
+    })
+    .catch(function(e) {
+        err.textContent = '⚠️ ' + e.message;
+        err.style.display = 'block';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        loading.style.display = 'none';
+    });
+}
+
 </script>
 
 {% endblock %}

@@ -35,7 +35,7 @@ import re as _re
 import logging
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, g, url_for, session, abort
+from flask import Flask, render_template, request, redirect, g, url_for, session, abort, jsonify
 
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -104,7 +104,9 @@ PER_PAGE = 12
 # =============================================================================
 _chart_analysis_cache = {}          # 图表 AI 分析结果缓存: {section: (timestamp, text)}
 _ml_analysis_cache = {}             # /ml 页面 AI 分析结果缓存: {section: (timestamp, text)}
+_compare_analysis_cache = {}        # /advice 城市对比 AI 解读缓存: {(a,b): (timestamp, text)}
 _CHART_CACHE_TTL = 300              # AI 分析缓存有效期，秒（5 分钟）
+_COMPARE_CACHE_TTL = 300            # 城市对比 AI 解读缓存有效期，秒（5 分钟）
 _ML_CACHE_TTL = 120                 # /ml AI 分析缓存有效期，秒（2 分钟，保证实时性）
 _chart_data_cache = None            # 图表数据缓存: (timestamp, data_dict)
 _CHART_DATA_CACHE_TTL = 300         # 图表数据缓存有效期，秒（5 分钟）
@@ -242,12 +244,13 @@ def _has_data():
 # 相关缓存变量（_chart_analysis_cache / _chart_data_cache 等）已集中定义在模块顶部「模块级状态」区块
 
 def _invalidate_chart_analysis_cache():
-    """清空图表 AI 分析缓存 + 图表数据缓存 + /ml 分析缓存，采集新数据后必须调用。"""
-    global _chart_data_cache
+    """清空图表 AI 分析缓存 + 图表数据缓存 + /ml 分析缓存 + 城市对比 AI 解读缓存，采集新数据后必须调用。"""
+    global _chart_data_cache, _compare_analysis_cache
     _chart_analysis_cache.clear()
     _ml_analysis_cache.clear()
+    _compare_analysis_cache.clear()
     _chart_data_cache = None
-    _logger.debug('图表 AI 分析缓存 + 数据缓存 + /ml 分析缓存已清空')
+    _logger.debug('图表 AI 分析缓存 + 数据缓存 + /ml 分析缓存 + 城市对比 AI 解读缓存已清空')
 
 
 def _compute_chart_data():
@@ -371,7 +374,8 @@ def index():
     return render_template('input.html', city_map_json=json.dumps(city_map, ensure_ascii=False))
 
 
-@app.route('/api/warmup')
+@csrf.exempt
+@app.route('/api/warmup', methods=['GET', 'POST'])
 def api_warmup():
     """静默预热接口：首页加载后前端静默调用，提前计算图表数据 + 全部建模模块。
     此后用户点「图表分析」「薪资洞察」即可秒开，无需等待训练。"""
@@ -981,11 +985,84 @@ def collect():
     )
 
 
+# --- 收藏「我感兴趣的岗位」(session 存储, 零迁移) -------------------------------
+def _load_interested_jobs():
+    """从 session 读取收藏岗位 id, 按 id 查询标题/城市/薪资, 保持收藏顺序返回。"""
+    ids = session.get('interested_jobs', [])
+    if not ids:
+        return []
+    db = sqlite3.connect(config.DB_PATH)
+    db.row_factory = sqlite3.Row
+    placeholders = ','.join('?' * len(ids))
+    cur = db.execute(
+        f"SELECT id, post, address, salary_min, salary_max FROM data WHERE id IN ({placeholders})",
+        ids,
+    )
+    rows = cur.fetchall()
+    db.close()
+    by_id = {r['id']: r for r in rows}
+    result = []
+    for i in ids:
+        r = by_id.get(i)
+        if not r:
+            continue
+        avg = round((r['salary_min'] + r['salary_max']) / 2, 1) if (r['salary_min'] or r['salary_max']) else 0
+        result.append({
+            'id': r['id'],
+            'title': r['post'],
+            'city': r['address'].split('-')[0] if r['address'] else '未知',
+            'salary_k': avg,
+        })
+    return result
+
+
+@app.route('/toggle_interest', methods=['POST'])
+def toggle_interest():
+    """AJAX 切换岗位收藏状态, 仅读写 session, 返回 JSON。
+
+    受全局 CSRFProtect 保护, 调用方必须在 X-CSRFToken 头或 csrf_token 表单字段携带 token。
+    """
+    raw = (request.form.get('job_id') or '').strip()
+    if not raw.isdecimal():
+        return jsonify({'error': 'invalid job_id'}), 400
+    job_id = int(raw)
+    if job_id <= 0:
+        return jsonify({'error': 'invalid job_id'}), 400
+
+    lst = session.get('interested_jobs', [])
+    if job_id in lst:
+        lst = [x for x in lst if x != job_id]
+        interested = False
+    else:
+        lst = lst + [job_id]
+        interested = True
+    session['interested_jobs'] = lst
+    return jsonify({'interested': interested, 'count': len(lst), 'job_id': job_id})
+
+
+@app.route('/interested')
+def interested():
+    """展示求职者收藏的「我感兴趣的岗位」清单 (session 存储, 零迁移)。"""
+    jobs = _load_interested_jobs()
+    return render_template('interested.html', jobs=jobs)
+
+
 @app.route('/advice', methods=['GET', 'POST'])
 def advice():
     if request.method != 'POST':
         # GET: 支持清除操作
         tool = request.args.get('tool', 'agent')
+        if tool not in ('agent', 'compare', 'match', 'review'):
+            tool = 'agent'
+
+        # 加载收藏清单 (供简历审查/岗位匹配两个 tab 复用)
+        interested_jobs = _load_interested_jobs()
+        review_preselect_id = None
+        tp = request.args.get('target_job_id', '').strip()
+        if tp.isdecimal():
+            tid = int(tp)
+            if tid in session.get('interested_jobs', []):
+                review_preselect_id = tid
 
         # 清除 Agent 对话: /advice?clear_agent=1
         if request.args.get('clear_agent') == '1':
@@ -1020,12 +1097,14 @@ def advice():
                                    answer=agent_state.get('answer'),
                                    trace=agent_state.get('trace'),
                                    critique=agent_state.get('critique', ''),
+                                   interested_jobs=interested_jobs,
                                    restored_agent=True)
         if compare_state:
             return render_template('advice.html', active_tab='compare',
                                    compare_result=compare_state.get('result'),
                                    compare_a=compare_state.get('a'),
                                    compare_b=compare_state.get('b'),
+                                   interested_jobs=interested_jobs,
                                    restored_compare=True)
         if match_state:
             return render_template('advice.html', active_tab='match',
@@ -1034,6 +1113,8 @@ def advice():
                                    match_city=match_state.get('city'),
                                    match_edu=match_state.get('edu'),
                                    match_exper=match_state.get('exper'),
+                                   interested_jobs=interested_jobs,
+                                   match_interested_ids=match_state.get('target_job_ids'),
                                    restored_match=True)
 
         review_state = session.get('review_state')
@@ -1043,9 +1124,14 @@ def advice():
                                    review_text=review_state.get('text'),
                                    review_city=review_state.get('city'),
                                    review_category=review_state.get('category'),
+                                   interested_jobs=interested_jobs,
+                                   review_preselect_id=review_preselect_id,
+                                   review_interested_ids=review_state.get('target_job_ids'),
                                    restored_review=True)
 
-        return render_template('advice.html', active_tab=tool)
+        return render_template('advice.html', active_tab=tool,
+                               interested_jobs=interested_jobs,
+                               review_preselect_id=review_preselect_id)
 
     tool = request.form.get('tool', 'agent')
 
@@ -1094,6 +1180,9 @@ def advice():
 
         # 保存对比结果到 session
         session['compare_state'] = {'result': compare_result, 'a': a, 'b': b}
+        # 重新对比 → 旧 AI 解读失效
+        global _compare_analysis_cache
+        _compare_analysis_cache.clear()
 
         return render_template('advice.html', compare_result=compare_result,
                                compare_a=a, compare_b=b, active_tab='compare')
@@ -1104,17 +1193,28 @@ def advice():
         city = request.form.get('city', '').strip()
         edu = request.form.get('edu', '').strip()
         exper = request.form.get('exper', '').strip()
+        interested_jobs = _load_interested_jobs()
+        # 仅在我感兴趣的岗位中匹配（可选开关，默认不勾选 = 原全库匹配）
+        use_interested = bool(request.form.get('match_interested'))
+        target_job_ids = None
+        if use_interested and session.get('interested_jobs'):
+            target_job_ids = [int(x) for x in session.get('interested_jobs')]
         if not skills:
             return render_template('advice.html', match_error='请至少输入一个技能关键词',
                                    match_skills=skills, match_city=city,
-                                   match_edu=edu, match_exper=exper, active_tab='match')
+                                   match_edu=edu, match_exper=exper,
+                                   match_interested=use_interested,
+                                   interested_jobs=interested_jobs, active_tab='match')
         try:
             from agent.agent_tools import match_jobs
-            match_result = match_jobs(skills=skills, city=city, edu=edu, exper=exper)
+            match_result = match_jobs(skills=skills, city=city, edu=edu, exper=exper,
+                                      target_job_ids=target_job_ids)
         except Exception:
             return render_template('advice.html', match_error='匹配查询失败,请稍后重试',
                                    match_skills=skills, match_city=city,
-                                   match_edu=edu, match_exper=exper, active_tab='match')
+                                   match_edu=edu, match_exper=exper,
+                                   match_interested=use_interested,
+                                   interested_jobs=interested_jobs, active_tab='match')
 
         # 保存匹配结果到 session
         session['match_state'] = {
@@ -1123,17 +1223,27 @@ def advice():
             'city': city,
             'edu': edu,
             'exper': exper,
+            'target_job_ids': target_job_ids,
         }
 
         return render_template('advice.html', match_result=match_result,
                                match_skills=skills, match_city=city,
-                               match_edu=edu, match_exper=exper, active_tab='match')
+                               match_edu=edu, match_exper=exper,
+                               match_interested=use_interested,
+                               match_interested_ids=target_job_ids,
+                               interested_jobs=interested_jobs, active_tab='match')
 
     # --- 简历审查与优化工具 ---
     if tool == 'review':
         resume_text = request.form.get('resume_text', '').strip()
         target_city = request.form.get('target_city', '').strip()
         target_category = request.form.get('target_category', '').strip()
+        interested_jobs = _load_interested_jobs()
+
+        # 针对收藏岗位做审查（可选）：勾选的岗位 id 列表
+        raw_ids = request.form.getlist('target_job_ids')
+        target_job_ids = [int(x) for x in raw_ids
+                          if x.isdecimal() and int(x) > 0] or None
 
         # 如果上传了文件，优先从文件提取文本
         uploaded_name = ''
@@ -1156,36 +1266,133 @@ def advice():
                 hint = f'无法从 "{uploaded_name}" 提取文本(请确认文件非空或尝试粘贴文本)'
             return render_template('advice.html', review_error=hint,
                                    review_text='', review_city=target_city,
-                                   review_category=target_category, active_tab='review')
+                                   review_category=target_category,
+                                   interested_jobs=interested_jobs,
+                                   review_interested_ids=target_job_ids,
+                                   active_tab='review')
         try:
             from agent.agent_tools import review_resume
             review_result = review_resume(resume_text, target_city=target_city,
-                                          target_category=target_category)
+                                          target_category=target_category,
+                                          target_job_ids=target_job_ids)
         except Exception:
             return render_template('advice.html', review_error='简历分析失败,请稍后重试',
                                    review_text=resume_text, review_city=target_city,
-                                   review_category=target_category, active_tab='review')
+                                   review_category=target_category,
+                                   interested_jobs=interested_jobs,
+                                   review_interested_ids=target_job_ids,
+                                   active_tab='review')
 
         session['review_state'] = {
             'result': review_result,
             'text': resume_text,
             'city': target_city,
             'category': target_category,
+            'target_job_ids': target_job_ids,
         }
 
         return render_template('advice.html', review_result=review_result,
                                review_text=resume_text, review_city=target_city,
-                               review_category=target_category, active_tab='review')
+                               review_category=target_category,
+                               interested_jobs=interested_jobs,
+                               review_interested_ids=target_job_ids,
+                               active_tab='review')
 
     # 未知工具类型，回退到 Agent
     return render_template('advice.html', error='未知工具类型', active_tab='agent')
+
+
+@app.route('/advice/compare/analyze', methods=['POST'])
+def advice_compare_analyze():
+    """城市对比 AI 解读接口（基于真实对比数据调用 LLM，带 5 分钟服务端缓存）。"""
+    import json as _json
+    compare_state = session.get('compare_state')
+    if not compare_state or 'result' not in compare_state:
+        return _json.dumps({'error': '请先完成城市对比再生成 AI 解读'}), 400
+
+    result = compare_state['result']
+    a = compare_state.get('a', '')
+    b = compare_state.get('b', '')
+    cache_key = (a, b)
+
+    # 缓存命中 → 直接返回
+    cached = _compare_analysis_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _COMPARE_CACHE_TTL:
+        _logger.debug('城市对比 AI 缓存命中: %s vs %s', a, b)
+        return cached[1]
+
+    side_a = result.get('a', {})
+    side_b = result.get('b', {})
+
+    def _fmt_side(s):
+        top_edu = '、'.join(f'{e}({c})' for e, c in s.get('top_edu', [])) or '无数据'
+        top_exper = '、'.join(f'{e}({c})' for e, c in s.get('top_exper', [])) or '无数据'
+        return (f"职位数量={s.get('count', 0)}个, 平均薪资={s.get('avg_salary_k', 0)}K, "
+                f"区间={s.get('min_salary_k', 0)}-{s.get('max_salary_k', 0)}K, "
+                f"学历要求Top3={top_edu}, 经验要求Top3={top_exper}")
+
+    skill_diff = result.get('skill_diff', {})
+    if skill_diff:
+        skill_lines = [f'{k}: {"、".join(f"{sk}({c})" for sk, c in v) if v else "无"}'
+                       for k, v in skill_diff.items()]
+        skill_desc = '\n'.join(skill_lines)
+    else:
+        skill_desc = '两城技能数据不足,无法对比技能差异'
+
+    data_desc = (f"城市A【{a}】: {_fmt_side(side_a)}\n"
+                 f"城市B【{b}】: {_fmt_side(side_b)}\n"
+                 f"技能差异:\n{skill_desc}")
+    instruction = ('请基于上述两城真实对比数据,重点分析:'
+                   '(1)两城薪资水平与岗位数量的差距及可能原因;'
+                   '(2)学历/经验要求的差异,反映的产业成熟度或人才结构差异;'
+                   '(3)技能偏好的差异,反映的产业侧重;'
+                   '(4)给求职者一个明确的「选城」或「准备方向」建议。'
+                   '用中文,180-320字,直接说结论,不要问候语。')
+
+    prompt = f"""以下是当前招聘数据库中通过爬虫真实采集并对比后的数据。请严格据此给出分析。
+
+【数据】
+{data_desc}
+
+【要求】
+{instruction}
+
+重要约束:
+- 数据结论必须来自上述数据的具体数字,限定在"本数据库采集的岗位中"。
+- 不得编造具体数字。数据不足时诚实说明"暂无相关数据"。
+- 可适当补充普适性求职建议(非数据库内容),但必须用 **【普适性建议】** 前缀标注,与数据结论明确区分。"""
+
+    api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
+    qwen_key = getattr(config, 'QWEN_API_KEY', '')
+    if not api_key and not qwen_key:
+        return _json.dumps({'error': 'DEEPSEEK_API_KEY 和 QWEN_API_KEY 均未配置,无法生成分析'}), 503
+
+    try:
+        from agent.agent_core import call_llm_with_fallback
+        messages = [
+            {'role': 'system', 'content': '你是招聘数据分析与城市对比解读助手。数据结论必须来自提供的真实采集数据;可补充普适性建议但必须用**【普适性建议】**标注;数据不足时诚实说明;不编造具体数字。输出纯文本中文。'},
+            {'role': 'user', 'content': prompt},
+        ]
+        analysis, _provider = call_llm_with_fallback(messages, deepseek_key=api_key)
+        _compare_analysis_cache[cache_key] = (time.time(), analysis)
+        _logger.info('城市对比 AI 解读 provider=%s %s vs %s', _provider, a, b)
+        return analysis
+    except requests.exceptions.HTTPError as e:
+        status = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
+        msg = 'AI 服务暂时繁忙,请稍后再试' if status == 429 else f'AI 分析生成失败: {str(e)}'
+        return _json.dumps({'error': msg}), 503
+    except Exception as e:
+        return _json.dumps({'error': f'AI 分析生成失败: {str(e)}'}), 500
 
 
 # --- 模板全局变量注入 ------------------------------------------------------------
 @app.context_processor
 def inject_globals():
     """向所有模板注入全局变量,避免每个路由手动传参。"""
-    return {'collect_token_required': bool(config.COLLECT_TOKEN)}
+    return {
+        'collect_token_required': bool(config.COLLECT_TOKEN),
+        'interested_count': len(session.get('interested_jobs', [])),
+    }
 
 
 if __name__ == '__main__':

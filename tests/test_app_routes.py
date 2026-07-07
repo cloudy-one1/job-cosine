@@ -250,3 +250,161 @@ class TestAllRoutesSmoke:
         """聚类岗位明细页在无数据时返回 404（不崩 500）"""
         resp = client.get('/ml/cluster/0')
         assert resp.status_code in (200, 404)
+
+
+# ============================================================
+# L-?: /toggle_interest 收藏切换 + 校验
+# ============================================================
+class TestToggleInterest:
+    """验证收藏岗位切换路由: 增删、非法 job_id 校验、CSRF 保护。"""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        import sqlite3
+        from config import DB_PATH
+        self.db = sqlite3.connect(DB_PATH, timeout=10)
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute(
+            "INSERT INTO data (post, company, address, salary_min, salary_max) VALUES (?, ?, ?, ?, ?)",
+            ("ZZZ_INTEREST_后端工程师", "CORP", "ZZZ_INTEREST_CITY", 12.0, 24.0),
+        )
+        self.db.commit()
+        self.job_id = self.db.execute(
+            "SELECT id FROM data WHERE post='ZZZ_INTEREST_后端工程师'"
+        ).fetchone()[0]
+        yield
+        self.db.execute("DELETE FROM data WHERE post='ZZZ_INTEREST_后端工程师'")
+        self.db.commit()
+        self.db.close()
+
+    def test_toggle_adds_then_removes(self, client):
+        """首次 toggle 收藏(返回 interested=True),再次 toggle 取消(interested=False)。"""
+        r1 = client.post('/toggle_interest', data={'job_id': str(self.job_id)})
+        assert r1.status_code == 200
+        d1 = r1.get_json()
+        assert d1['interested'] is True
+        assert d1['job_id'] == self.job_id
+        assert d1['count'] == 1
+
+        r2 = client.post('/toggle_interest', data={'job_id': str(self.job_id)})
+        d2 = r2.get_json()
+        assert d2['interested'] is False
+        assert d2['count'] == 0
+
+    def test_toggle_invalid_job_id_returns_400(self, client):
+        """非数字 / 非正整数 job_id 必须 400。"""
+        assert client.post('/toggle_interest', data={'job_id': 'abc'}).status_code == 400
+        assert client.post('/toggle_interest', data={'job_id': '-1'}).status_code == 400
+        assert client.post('/toggle_interest', data={'job_id': '0'}).status_code == 400
+        assert client.post('/toggle_interest', data={}).status_code == 400
+
+    def test_toggle_requires_csrf(self):
+        """开启 CSRF 后,无 token 的 POST 必须被拒(400/419)。"""
+        from app import app
+        app.config['TESTING'] = False
+        app.config['WTF_CSRF_ENABLED'] = True
+        try:
+            with app.test_client() as c:
+                resp = c.post('/toggle_interest', data={'job_id': '1'})
+                assert resp.status_code in (400, 419), f"期望 CSRF 拒绝, 实际 {resp.status_code}"
+        finally:
+            app.config['WTF_CSRF_ENABLED'] = False
+
+
+# ============================================================
+# L-?: /interested 收藏岗位展示页
+# ============================================================
+class TestInterestedPage:
+    """验证收藏展示页路由: 空收藏渲染、带收藏渲染、导航角标上下文。"""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, client):
+        import sqlite3
+        from config import DB_PATH
+        self.db = sqlite3.connect(DB_PATH, timeout=10)
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute(
+            "INSERT INTO data (post, company, address, salary_min, salary_max) VALUES (?, ?, ?, ?, ?)",
+            ("ZZZ_INTERESTED_PAGE_后端工程师", "CORP", "ZZZ_CITY-北京", 12.0, 24.0),
+        )
+        self.db.commit()
+        self.job_id = self.db.execute(
+            "SELECT id FROM data WHERE post='ZZZ_INTERESTED_PAGE_后端工程师'"
+        ).fetchone()[0]
+        # 用同一 client 收藏, 保证 session 与后续断言共享
+        client.post('/toggle_interest', data={'job_id': str(self.job_id)})
+        yield
+        client.post('/toggle_interest', data={'job_id': str(self.job_id)})
+        self.db.execute("DELETE FROM data WHERE post='ZZZ_INTERESTED_PAGE_后端工程师'")
+        self.db.commit()
+        self.db.close()
+
+    def test_page_renders_with_favorites(self, client):
+        resp = client.get('/interested')
+        assert resp.status_code == 200
+        assert '我感兴趣的岗位' in resp.get_data(as_text=True)
+        assert 'ZZZ_INTERESTED_PAGE_后端工程师' in resp.get_data(as_text=True)
+
+    def test_page_shows_empty_state_when_no_favorites(self, client):
+        client.post('/toggle_interest', data={'job_id': str(self.job_id)})
+        resp = client.get('/interested')
+        assert resp.status_code == 200
+        assert '还没有收藏任何岗位' in resp.get_data(as_text=True)
+
+
+# ============================================================
+# L-?: /advice/compare/analyze 城市对比 AI 解读接口
+# ============================================================
+class TestCompareAIAnalyze:
+    """验证城市对比 AI 解读接口: 无对比状态 400、无密钥 503、正常返回并缓存命中。"""
+
+    @staticmethod
+    def _set_compare_state(client):
+        """构造一份结构合法的对比结果写入 session。"""
+        fake_result = {
+            'compare_type': 'city',
+            'a': {'value': '北京', 'count': 3, 'avg_salary_k': 18.0,
+                  'min_salary_k': 10.0, 'max_salary_k': 30.0,
+                  'top_edu': [('本科', 2)], 'top_exper': [('3-5年', 1)]},
+            'b': {'value': '上海', 'count': 2, 'avg_salary_k': 20.0,
+                  'min_salary_k': 12.0, 'max_salary_k': 35.0,
+                  'top_edu': [('硕士', 1)], 'top_exper': [('1年', 1)]},
+            'skill_diff': {'北京_独有': [('Django', 1)], '上海_独有': [('Flask', 1)],
+                           '共同高频': [('Python', 2)]},
+        }
+        with client.session_transaction() as sess:
+            sess['compare_state'] = {'result': fake_result, 'a': '北京', 'b': '上海'}
+
+    def test_without_compare_state_returns_400(self, client):
+        """未执行城市对比时调用 AI 解读应 400。"""
+        resp = client.post('/advice/compare/analyze')
+        assert resp.status_code == 400, f"无对比状态应 400, 实际 {resp.status_code}"
+
+    def test_no_api_key_returns_503(self, client, monkeypatch):
+        """两个密钥都未配置时应 503。"""
+        self._set_compare_state(client)
+        monkeypatch.setattr('config.DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr('config.QWEN_API_KEY', '')
+        resp = client.post('/advice/compare/analyze')
+        assert resp.status_code == 503, f"无密钥应 503, 实际 {resp.status_code}"
+
+    def test_normal_returns_analysis_and_cache_hit(self, client, monkeypatch):
+        """正常返回分析文本，且第二次请求命中缓存不再调用 LLM。"""
+        self._set_compare_state(client)
+        monkeypatch.setattr('config.DEEPSEEK_API_KEY', 'test-key')
+        calls = {'n': 0}
+
+        def fake_llm(messages, deepseek_key=None):
+            calls['n'] += 1
+            return '北京与上海对比: 上海平均薪资更高, 岗位略少。', 'deepseek'
+
+        monkeypatch.setattr('agent.agent_core.call_llm_with_fallback', fake_llm)
+        resp1 = client.post('/advice/compare/analyze')
+        assert resp1.status_code == 200, f"正常应 200, 实际 {resp1.status_code}"
+        assert '北京' in resp1.text and '上海' in resp1.text
+        assert calls['n'] == 1, "首次请求应调用一次 LLM"
+
+        resp2 = client.post('/advice/compare/analyze')
+        assert resp2.status_code == 200
+        assert resp2.text == resp1.text
+        assert calls['n'] == 1, "缓存命中时不应再次调用 LLM"

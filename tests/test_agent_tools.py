@@ -269,6 +269,57 @@ class TestReviewResume:
         assert len(result['job_gaps']) > 0
         assert result['extracted']['edu'] == '本科'
 
+    def test_target_job_ids_restricts_gap_scope(self, temp_db, monkeypatch):
+        """传入 target_job_ids=[4] 时, 只针对该岗位 JD 做 Gap 分析。"""
+        import config
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
+        from agent.agent_tools import review_resume
+        # 前端岗位(id=4) JD 含 React/Vue/TypeScript, 简历没有 → 必产生 Gap
+        result = review_resume(self.SAMPLE_RESUME, target_job_ids=[4])
+        ids = [g['id'] for g in result['job_gaps']]
+        assert all(i in (4,) for i in ids), f"结果含非目标岗位: {ids}"
+        assert 4 in ids
+
+    def test_target_job_ids_backward_compat(self, temp_db, monkeypatch):
+        """不传 target_job_ids 时保持原全表兜底, 命中多个岗位。"""
+        import config
+        monkeypatch.setattr(config, 'DEEPSEEK_API_KEY', '')
+        monkeypatch.setattr(config, 'QWEN_API_KEY', '')
+        from agent.agent_tools import review_resume
+        result = review_resume(self.SAMPLE_RESUME)
+        ids = [g['id'] for g in result['job_gaps']]
+        assert len(ids) >= 2, "全表兜底应命中多个岗位"
+
+
+# ============================================================
+# match_jobs — target_job_ids 收藏岗位匹配
+# ============================================================
+class TestMatchJobsTargetIds:
+    """验证 match_jobs 的 target_job_ids 参数: 仅在收藏岗位集合内匹配。"""
+
+    def test_target_job_ids_restricts_scope(self, temp_db):
+        """传入 target_job_ids=[4] 时, 结果仅含该岗位。"""
+        from agent.agent_tools import match_jobs
+        result = match_jobs(skills='React', target_job_ids=[4])
+        ids = [j['id'] for j in result['top_matches']]
+        assert all(i == 4 for i in ids), f"结果含非目标岗位: {ids}"
+        assert result['total_matched'] == 1
+
+    def test_target_job_ids_no_match_when_missing(self, temp_db):
+        """传入不存在的 id, 命中数为 0 (不报错)。"""
+        from agent.agent_tools import match_jobs
+        result = match_jobs(skills='React', target_job_ids=[999])
+        assert result['total_matched'] == 0
+        assert result['top_matches'] == []
+
+    def test_backward_compat_full_table(self, temp_db):
+        """不传 target_job_ids 时保持原全表匹配, 命中多个岗位。"""
+        from agent.agent_tools import match_jobs
+        result = match_jobs(skills='Python')
+        ids = [j['id'] for j in result['top_matches']]
+        assert len(ids) >= 2, "全表匹配应命中多个岗位"
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

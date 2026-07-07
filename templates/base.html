@@ -134,6 +134,26 @@
     .btn-info:hover{ background:#A83E2E; box-shadow:0 4px 16px rgba(196,79,58,.3); }
     .btn-default{ background:var(--card); border:1.5px solid var(--line); }
 
+    /* 感兴趣收藏按钮 — 描边药丸, 与数据页交互蓝一致 */
+    .interest-btn{
+        border:1.5px solid #2563eb; background:transparent; color:#2563eb;
+        border-radius:999px; padding:4px 12px; font-size:12px; font-weight:600;
+        cursor:pointer; transition:all .2s ease; white-space:nowrap; font-family:'Noto Sans SC',sans-serif;
+    }
+    .interest-btn:hover{ background:#2563eb; color:#fff; transform:scale(1.06); }
+    .interest-btn.interested{
+        background:#2563eb; color:#fff; border-color:#2563eb;
+        box-shadow:0 4px 12px rgba(37,99,235,.3);
+    }
+
+    /* 导航收藏数量角标 */
+    .nav-badge{
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:18px; height:18px; padding:0 5px; margin-left:6px;
+        background:var(--accent); color:#fff; border-radius:999px;
+        font-size:11px; font-weight:700; line-height:1;
+    }
+
         /* ---------- forms ---------- */
         .form-control{
             width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:12px;
@@ -201,6 +221,7 @@
             <li><a href="/chart/city">图表分析</a></li>
             <li><a href="/ml">薪资洞察</a></li>
             <li><a href="/advice">智能助手</a></li>
+            <li><a href="/interested">我的收藏<span class="nav-badge" id="interested-badge"{% if not interested_count %} style="display:none;"{% endif %}>{{ interested_count }}</span></a></li>
         </ul>
         </div>
     </nav>
