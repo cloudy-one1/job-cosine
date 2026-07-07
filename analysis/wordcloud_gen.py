@@ -2,7 +2,7 @@
 词云生成模块 — 从 51job 职位标签（keywords）中提取高频技术关键词。
 
 - 只从 keywords（51job jobTags）提取，这是平台官方标注的技能标签，比 post/content 更精准
-- 使用 echarts-wordcloud + maskImage 前端渲染中国地图形状
+- echarts-wordcloud 前端圆形布局渲染（maskImage 中国地图轮廓已由 ensure_china_mask 生成，但未启用）
 - 停用词覆盖福利、学历、城市、招聘用语等
 - mask 图片自动从 GeoJSON 生成（首次运行时）
 """

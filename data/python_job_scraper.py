@@ -449,7 +449,7 @@ def get_province_city_map():
         grouped.setdefault(province, []).append((city, code))
     return grouped
 
-# 中文城市名 → 拼音映射(用于构建 51job 原始链接 URL, pypinyin 自动生成)
+# 中文城市名 → 拼音映射(用于构建 51job 原始链接 URL, 硬编码字典)
 CITY_PINYIN = {
     "七台河": "qitaihe",
     "万宁": "wanning",

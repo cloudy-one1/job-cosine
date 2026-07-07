@@ -7,11 +7,11 @@
 | 模块 | 功能 | 技术 |
 |------|------|------|
 | 数据采集 | 51job 实时职位抓取（多城市×5 页上限） | Playwright (Chrome 无头) + stealth 对抗 WAF |
-| 数据清洗 | 薪资解析、地址去重、jobTags 关键字提取 | 正则 + 规则引擎 |
+| 数据清洗 | 薪资解析、jobTags 关键字提取 | 正则 + 规则引擎 |
 | 描述性统计 | 薪资/学历/经验/城市分布 + 交叉分析 | Pandas + SQLite |
 | 职位聚类 | 自动发现职位方向，支持点击簇卡片查看明细 | Jieba 分词 + TF-IDF + KMeans + 轮廓系数 |
-| 多维薪资分析 | 技能供需热力图、经验-薪资成长曲线、学历溢价分析、岗位相似度网络 | Pandas + NumPy + 余弦相似度 |
-| 技能词云 | 仅从 51job 官方 jobTags 提取，中国地图 mask 渲染 | 同义词归一化 + 停用词白名单过滤 |
+| 多维薪资分析 | 技能供需热力图、经验-薪资成长曲线、学历溢价分析、岗位相似度网络 | NumPy + SQLite + 余弦相似度 |
+| 技能词云 | 仅从 51job 官方 jobTags 提取，echarts-wordcloud 圆形布局渲染 | 同义词归一化 + 停用词白名单过滤 |
 | AI 图表解读 | 6 个图表区段点击即 AI 分析（服务端 5 分钟缓存） | AJAX + call_llm_with_fallback (DeepSeek → 千问) |
 | AI 建模解读 | 聚类/热力图/相似度/薪资曲线/学历溢价 5 维度 AI 解读 | 同上 + 各模块数据拼装 |
 | AI Agent 问答 | 预加载 DB 概览 → 单次 LLM → 双段式输出（数据结论+普适建议） | DeepSeek/千问双模型 fallback |
@@ -37,7 +37,7 @@
 > - **采集口令保护**：`.env` 配置 `COLLECT_TOKEN` 后，采集需输入口令，防误操作清空数据
 > - **速率限制**（Flask-Limiter）：全局 50/小时 + 采集接口 5/小时，防滥用
 > - **SQLite WAL 模式**：启动时自动启用，并发读不再被写操作锁库
-> - **Agent 参数白名单**：`inspect.signature` 过滤 LLM 幻觉参数，防 TypeError
+> - **Agent 工具调用**：工具函数参数由代码层预定义并直接调用，不经 LLM 动态传参，避免非法参数
 > - **分页链接 `url_for()`**：自动 URL 编码，杜绝手动拼接的安全隐患
 >
 > **工程质量**（代码健壮性提升）：
@@ -51,14 +51,13 @@
 ## 项目结构
 
 ```
-project1/
+project1-enhanced/
 ├── app.py                    # Flask 入口 (Web 服务 + 路由)
 ├── config.py                 # 配置 (数据库路径、API Key 从 .env 读取)
 │
 ├── data/                     # 数据层：采集 + 清洗
 │   ├── python_job_scraper.py    — 51job 实时采集 (Playwright + stealth)
-│   ├── salary_parser.py         — 薪资字符串解析 (1.5-2万/月 → 千元数值)
-│   └── fix_duplicate_address.py — 地址去重与清洗
+│   └── salary_parser.py         — 薪资字符串解析 (1.5-2万/月 → 千元数值)
 │
 ├── analysis/                 # 分析层：统计 + 可视化数据生成
 │   ├── xinzi.py                 — 薪资分段统计 (8 档/千元)
@@ -66,13 +65,13 @@ project1/
 │   ├── jinyan.py                — 经验分布统计
 │   ├── region.py                — 城市分布统计 (含 extract_city 共享工具)
 │   ├── cross.py                 — 交叉分析 (薪资 vs 经验 / 薪资 vs 学历)
-│   ├── jobtitle.py              — 职位标题规则分类 (25行业 100+规则,5层优先级)
-│   └── wordcloud_gen.py         — 技能词云 (51job jobTags + 同义词归一化 + 中国地图 mask)
+│   ├── jobtitle.py              — 职位标题规则分类 (40+行业 100+规则,5层优先级)
+│   └── wordcloud_gen.py         — 技能词云 (51job jobTags + 同义词归一化 + 圆形布局)
 │
 ├── modeling/                 # 模型层：机器学习 + 多维分析
 │   ├── job_clustering.py        — KMeans 无监督聚类 (TF-IDF 技能向量 + 自动 k 选择 + 轮廓系数)
 │   ├── salary_predict.py        — 薪资统计查询 (DB 驱动: 中位数/均值/分位数,非模型预测)
-│   ├── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵,keywords fallback Jieba)
+│   ├── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵,keywords fallback 正则)
 │   ├── job_similarity.py        — 岗位相似度网络 (余弦相似度,转型路径建议)
 │   ├── salary_curve.py          — 薪资成长曲线 (经验-薪资趋势,按方向/city分组)
 │   └── edu_premium.py           — 学历溢价分析 (硕士vs本科vs大专,按城市+方向分层)
@@ -167,7 +166,7 @@ python app.py
 
 # 4. 命令行独立运行各模块验证
 python -c "from analysis.xinzi import xinzi; print(xinzi())"
-python -c "from analysis.jobtitle import classify_batch; print(classify_batch())"
+python -c "from analysis.jobtitle import jobtitlefun; print(jobtitlefun())"
 python -c "from analysis.wordcloud_gen import generate_wordcloud_data; print(generate_wordcloud_data(10))"
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.skill_heatmap import compute_skill_heatmap; print(compute_skill_heatmap())"
@@ -221,7 +220,7 @@ docker run -d -p 5000:5000 \
 
 ```bash
 git clone <你的仓库地址>
-cd project1
+cd project1-enhanced
 pip install -r requirements.txt
 playwright install chromium      # 仅在需要采集的机器上安装
 python app.py                      # 访问 http://<服务器IP>:5000
@@ -246,6 +245,6 @@ python app.py                      # 访问 http://<服务器IP>:5000
 | `/toggle_interest` | POST | AJAX 切换岗位收藏状态（需 CSRF token） | (JSON) |
 | `/collect` | GET/POST | 数据采集管理（5 次/小时限流 + 可选口令保护） | `collect.html` |
 
-> 共 14 个路由。JSON 接口由前端 AJAX 调用，不直接渲染页面。所有 POST 路由均受 CSRF 保护。`/collect` 单独限流 5 次/小时。
+> 共 14 个对外路由 + 1 个 CSRF 豁免的内部接口（`/advice/active-tab`，前端 tab 状态同步用），合计 15 个路由定义。JSON 接口由前端 AJAX 调用，不直接渲染页面。所有 POST 路由均受 CSRF 保护。`/collect` 单独限流 5 次/小时。
 
 <!-- 变更记录见 git log，或 CODEBUDDY.md 第 10 节 -->
