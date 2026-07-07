@@ -196,6 +196,24 @@
     .answer-card p { margin-bottom: 10px; }
     .answer-card p:last-child { margin-bottom: 0; }
 
+    /* ---------- Markdown 渲染（AI 回答 / 简历审查） ---------- */
+    .md-h1, .md-h2, .md-h3 { color: var(--warm-ink); font-weight: 700; line-height: 1.4; margin: 14px 0 8px; }
+    .md-h1 { font-size: 20px; }
+    .md-h2 { font-size: 17px; border-left: 4px solid var(--warm-primary); padding-left: 10px; }
+    .md-h3 { font-size: 15px; }
+    .md-h1:first-child, .md-h2:first-child, .md-h3:first-child { margin-top: 0; }
+    .md-ul, .md-ol { margin: 8px 0 12px; padding-left: 22px; }
+    .md-ul { list-style: disc; }
+    .md-ol { list-style: decimal; }
+    .md-ul li, .md-ol li { margin-bottom: 6px; line-height: 1.7; color: var(--warm-ink); }
+    .md-p { margin: 0 0 10px; line-height: 1.8; color: var(--warm-ink); }
+    .md-p:last-child { margin-bottom: 0; }
+    .answer-card strong, .warm-card strong { color: var(--warm-primary-dark); }
+    .answer-card code, .warm-card code {
+        background: var(--warm-primary-light); padding: 1px 6px;
+        border-radius: 6px; font-size: 13px; color: var(--warm-primary-dark);
+    }
+
     .trace-card { margin-top: 20px; }
     .trace-item {
         display: flex; gap: 16px; padding: 12px 0;
@@ -335,7 +353,7 @@
 
     {% if answer %}
     <div class="divider-text"><span>AI 回答</span></div>
-    <div class="answer-card">{{ answer | safe }}</div>
+    <div class="answer-card" data-md>{{ answer }}</div>
 
     {% if data_context %}
     <div class="divider-text"><span>数据依据</span></div>
@@ -885,7 +903,7 @@
     <!-- 总建议 -->
     {% if review_result.summary %}
     <div class="warm-card" style="border-left: 4px solid var(--warm-primary); padding: 16px 20px;">
-        <span style="font-size:13px; color:var(--warm-ink); line-height:1.7;">{{ review_result.summary }}</span>
+        <div data-md style="font-size:13px; color:var(--warm-ink); line-height:1.7;">{{ review_result.summary }}</div>
     </div>
     {% endif %}
 
@@ -893,7 +911,7 @@
     {% if review_result.critique %}
     <div class="divider-text"><span>🤖 AI 简历诊断报告 · {{ review_result.provider or 'AI' }}</span></div>
     <div class="warm-card" style="padding: 20px 24px; border-left: 4px solid #667EEA;">
-        <div style="font-size:14px; color:var(--warm-ink); line-height:1.8; white-space:pre-wrap;">{{ review_result.critique }}</div>
+        <div data-md style="font-size:14px; color:var(--warm-ink); line-height:1.8;">{{ review_result.critique }}</div>
     </div>
     {% elif not review_result.ai_available %}
     <div class="warm-alert" style="margin-top:8px;">未启用 AI 深度分析（未配置 DEEPSEEK_API_KEY / QWEN_API_KEY），以下为规则引擎生成的 Gap 结果。</div>
@@ -1004,7 +1022,7 @@
     <div class="divider-text"><span>✨ AI 优化简历 · 可直接复制使用</span></div>
     <div class="warm-card" style="padding: 20px 24px; border-left: 4px solid #38A169; position:relative;">
         <button onclick="copyResume()" style="position:absolute; top:14px; right:14px; font-size:12px; padding:4px 12px; border:none; border-radius:14px; background:var(--warm-primary); color:#fff; cursor:pointer;">复制</button>
-        <div id="optimized-resume" style="font-size:14px; color:var(--warm-ink); line-height:1.8; white-space:pre-wrap;">{{ review_result.optimized_resume }}</div>
+        <div id="optimized-resume" data-md style="font-size:14px; color:var(--warm-ink); line-height:1.8;">{{ review_result.optimized_resume }}</div>
     </div>
     {% endif %}
 
@@ -1013,6 +1031,7 @@
 </div>
 
 
+<script src="{{ url_for('static', filename='markdown.js') }}"></script>
 <script>
 function switchTab(name) {
     document.querySelectorAll('.pill-btn').forEach(function(btn) { btn.classList.remove('active'); });
