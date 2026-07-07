@@ -13,7 +13,7 @@
   data/       — 数据采集与清洗 (scraper, parser, cleaner)
   analysis/   — 描述性统计 (薪资、学历、经验、地区、职位分类)
   modeling/   — 机器学习与统计模型 (聚类、薪资分析)
-  agent/      — ReAct Agent 系统 (工具注册、推理循环)
+  agent/      — 轻量 Agent (预加载DB概览+单次LLM调用, DeepSeek/千问双模型 fallback)
   templates/  — Flask 模板
 
 运行: python app.py

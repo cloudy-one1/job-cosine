@@ -14,7 +14,7 @@
 | 技能词云 | 51job官方标签+标题分词 双源加权词频 | Jieba + 51job jobTags |
 | 技能需求分析 | 任一技能的市场需求、薪资、城市分布、共现技能 | SQL 搜索 + 技能正则提取 |
 | AI 图表解读 | AI 实时分析图表数据，点击即生成 | AJAX + agent_core.call_llm_with_fallback (DeepSeek → 千问) |
-| AI Agent | 自然语言交互式数据分析 + 城市对比 | 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback |
+| AI Agent | 预加载数据概览+单次LLM调用 | DeepSeek/千问双模型 fallback + 结构化双段式输出 |
 | Docker 部署 | 一键容器化运行 | Docker + docker-compose |
 
 > **容错设计**：空数据库首次启动不会崩溃，所有页面友好提示"请先采集数据"，无需预先准备任何数据。
@@ -72,7 +72,7 @@ project1/
 │   └── skill_heatmap.py         — 技能供需热力图 (城市×技能 薪资矩阵)
 │
 ├── agent/                    # Agent 层：大模型对话
-│   ├── agent_core.py            — 手写 ReAct 推理循环 + DeepSeek/千问双模型 fallback
+│   ├── agent_core.py            — 预加载DB概览+单次LLM调用 + DeepSeek/千问双模型 fallback
 │   └── agent_tools.py           — 工具注册与查询函数 (含技能分析/学历溢价/相似方向)
 │   └── resume_parser.py         — 简历文件解析 (PDF/DOCX → 纯文本)
 │
