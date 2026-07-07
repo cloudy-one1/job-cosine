@@ -1048,6 +1048,61 @@ def interested():
     return render_template('interested.html', jobs=jobs)
 
 
+def _render_advice(active_tab, **overrides):
+    """统一渲染 advice.html：从 session/服务端存储恢复四个 tab 的持久化状态，
+    保证任意 tab 提交生成后，其余 tab 的内容依旧保留（修复「切换 tab 内容被重置」）。
+    overrides 用于覆盖刚计算出的当前 tab 结果（POST 提交时使用）。
+    """
+    interested_jobs = _load_interested_jobs()
+    review_preselect_id = None
+    tp = request.args.get('target_job_id', '').strip()
+    if tp.isdecimal():
+        tid = int(tp)
+        if tid in session.get('interested_jobs', []):
+            review_preselect_id = tid
+
+    chat_id = session.get('chat_id')
+    agent_state = _conversations.get(chat_id) if chat_id else None
+    compare_state = session.get('compare_state')
+    match_state = session.get('match_state')
+    review_state = _review_store.get(session.get('review_id')) if session.get('review_id') else None
+    compare_ai = session.get('compare_ai_analysis')
+    if compare_ai and (time.time() - compare_ai.get('ts', 0)) >= _COMPARE_CACHE_TTL:
+        compare_ai = None
+        session.pop('compare_ai_analysis', None)
+
+    ctx = dict(
+        active_tab=active_tab,
+        interested_jobs=interested_jobs,
+        review_preselect_id=review_preselect_id,
+        question=agent_state.get('question') if agent_state else None,
+        answer=agent_state.get('answer') if agent_state else None,
+        data_context=agent_state.get('data_context') if agent_state else None,
+        restored_agent=bool(agent_state),
+        compare_result=compare_state.get('result') if compare_state else None,
+        compare_a=compare_state.get('a') if compare_state else None,
+        compare_b=compare_state.get('b') if compare_state else None,
+        compare_ai_analysis=compare_ai.get('text') if compare_ai else None,
+        restored_compare=bool(compare_state),
+        match_result=match_state.get('result') if match_state else None,
+        match_skills=match_state.get('skills') if match_state else None,
+        match_city=match_state.get('city') if match_state else None,
+        match_edu=match_state.get('edu') if match_state else None,
+        match_exper=match_state.get('exper') if match_state else None,
+        match_interested=bool(match_state.get('target_job_ids')) if match_state else False,
+        match_interested_ids=match_state.get('target_job_ids') if match_state else None,
+        restored_match=bool(match_state),
+        review_result=review_state.get('result') if review_state else None,
+        review_text=review_state.get('text') if review_state else None,
+        review_city=review_state.get('city') if review_state else None,
+        review_category=review_state.get('category') if review_state else None,
+        review_interested_ids=review_state.get('target_job_ids') if review_state else None,
+        restored_review=bool(review_state),
+    )
+    ctx.update(overrides)
+    return render_template('advice.html', **ctx)
+
+
 @app.route('/advice', methods=['GET', 'POST'])
 def advice():
     if request.method != 'POST':
@@ -1057,15 +1112,6 @@ def advice():
             tool = session.get('advice_active_tab', 'agent')
         if tool not in ('agent', 'compare', 'match', 'review'):
             tool = 'agent'
-
-        # 加载收藏清单 (供简历审查/岗位匹配两个 tab 复用)
-        interested_jobs = _load_interested_jobs()
-        review_preselect_id = None
-        tp = request.args.get('target_job_id', '').strip()
-        if tp.isdecimal():
-            tid = int(tp)
-            if tid in session.get('interested_jobs', []):
-                review_preselect_id = tid
 
         # 清除 Agent 对话: /advice?clear_agent=1
         if request.args.get('clear_agent') == '1':
@@ -1091,49 +1137,8 @@ def advice():
             _review_store.pop(session.pop('review_id', None), None)
             return redirect(url_for('advice'))
 
-        # 同时从 session 恢复所有 tab 的状态（非互斥，切换 tab 或顶部导航后仍可保留）
-        chat_id = session.get('chat_id')
-        agent_state = _conversations.get(chat_id) if chat_id else None
-        compare_state = session.get('compare_state')
-        match_state = session.get('match_state')
-        review_state = _review_store.get(session.get('review_id')) if session.get('review_id') else None
-        compare_ai = session.get('compare_ai_analysis')
-        if compare_ai and (time.time() - compare_ai.get('ts', 0)) >= _COMPARE_CACHE_TTL:
-            compare_ai = None
-            session.pop('compare_ai_analysis', None)
-
-        return render_template(
-            'advice.html', active_tab=tool,
-            interested_jobs=interested_jobs,
-            review_preselect_id=review_preselect_id,
-            # Agent
-            question=agent_state.get('question') if agent_state else None,
-            answer=agent_state.get('answer') if agent_state else None,
-            data_context=agent_state.get('data_context') if agent_state else None,
-            restored_agent=bool(agent_state),
-            # 城市对比
-            compare_result=compare_state.get('result') if compare_state else None,
-            compare_a=compare_state.get('a') if compare_state else None,
-            compare_b=compare_state.get('b') if compare_state else None,
-            compare_ai_analysis=compare_ai.get('text') if compare_ai else None,
-            restored_compare=bool(compare_state),
-            # 岗位匹配
-            match_result=match_state.get('result') if match_state else None,
-            match_skills=match_state.get('skills') if match_state else None,
-            match_city=match_state.get('city') if match_state else None,
-            match_edu=match_state.get('edu') if match_state else None,
-            match_exper=match_state.get('exper') if match_state else None,
-            match_interested=bool(match_state.get('target_job_ids')) if match_state else False,
-            match_interested_ids=match_state.get('target_job_ids') if match_state else None,
-            restored_match=bool(match_state),
-            # 简历审查
-            review_result=review_state.get('result') if review_state else None,
-            review_text=review_state.get('text') if review_state else None,
-            review_city=review_state.get('city') if review_state else None,
-            review_category=review_state.get('category') if review_state else None,
-            review_interested_ids=review_state.get('target_job_ids') if review_state else None,
-            restored_review=bool(review_state),
-        )
+        # 从 session/服务端存储恢复所有 tab 的持久化状态并渲染
+        return _render_advice(tool)
 
     tool = request.form.get('tool', 'agent')
 
@@ -1141,45 +1146,42 @@ def advice():
     if tool == 'agent':
         question = request.form.get('question', '').strip()
         if not question:
-            return render_template('advice.html', error='请输入你的问题', active_tab='agent')
+            return _render_advice('agent', error='请输入你的问题')
         api_key = getattr(config, 'DEEPSEEK_API_KEY', '')
         qwen_key = getattr(config, 'QWEN_API_KEY', '')
         if not api_key and not qwen_key:
-            return render_template('advice.html', error='请先在.env配置DEEPSEEK_API_KEY或QWEN_API_KEY',
-                                   question=question, active_tab='agent')
+            return _render_advice('agent', error='请先在.env配置DEEPSEEK_API_KEY或QWEN_API_KEY',
+                                   question=question)
         try:
             from agent.agent_core import run_agent
             answer, data_context = run_agent(question)
         except Exception:
-            return render_template('advice.html', error='Agent调用失败,请稍后重试',
-                                   question=question, active_tab='agent')
+            return _render_advice('agent', error='Agent调用失败,请稍后重试',
+                                   question=question)
 
         # 保存 Agent 对话到服务端会话存储
         chat_id = str(uuid.uuid4())
         _conversations[chat_id] = {'question': question, 'answer': answer, 'data_context': data_context}
         session['chat_id'] = chat_id
         session['advice_active_tab'] = 'agent'
-        # 清理旧对比/技能结果（新对话后可能过时）
-        session.pop('compare_state', None)
-        session.pop('match_state', None)
-        _review_store.pop(session.pop('review_id', None), None)
+        # 四个 tab 相互独立，各自保留已生成的内容，不再互相清空
 
-        return render_template('advice.html', question=question, answer=answer,
-                               data_context=data_context, active_tab='agent')
+        return _render_advice('agent', question=question, answer=answer,
+                               data_context=data_context)
 
     # --- 城市对比工具 ---
     if tool == 'compare':
         a = request.form.get('a', '').strip()
         b = request.form.get('b', '').strip()
         if not a or not b:
-            return render_template('advice.html', compare_error='请输入两个要对比的城市',
-                                   compare_a=a, compare_b=b, active_tab='compare')
+            return _render_advice('compare', compare_error='请输入两个要对比的城市',
+                                   compare_a=a, compare_b=b)
         try:
             from agent.agent_tools import compare_jobs
             compare_result = compare_jobs('city', a, b)
         except Exception:
-            return render_template('advice.html', compare_error='对比查询失败,请稍后重试',
-                                   compare_a=a, compare_b=b, active_tab='compare')
+            return _render_advice('compare', compare_error='对比查询失败,请稍后重试',
+                                   compare_a=a, compare_b=b)
 
         # 保存对比结果到 session
         session['compare_state'] = {'result': compare_result, 'a': a, 'b': b}
@@ -1188,8 +1190,8 @@ def advice():
         _compare_analysis_cache.clear()
         session.pop('compare_ai_analysis', None)
 
-        return render_template('advice.html', compare_result=compare_result,
-                               compare_a=a, compare_b=b, active_tab='compare')
+        return _render_advice('compare', compare_result=compare_result,
+                               compare_a=a, compare_b=b)
 
     # --- 岗位匹配推荐工具 ---
     if tool == 'match':
@@ -1204,21 +1206,21 @@ def advice():
         if use_interested and session.get('interested_jobs'):
             target_job_ids = [int(x) for x in session.get('interested_jobs')]
         if not skills:
-            return render_template('advice.html', match_error='请至少输入一个技能关键词',
+            return _render_advice('match', match_error='请至少输入一个技能关键词',
                                    match_skills=skills, match_city=city,
                                    match_edu=edu, match_exper=exper,
                                    match_interested=use_interested,
-                                   interested_jobs=interested_jobs, active_tab='match')
+                                   interested_jobs=interested_jobs)
         try:
             from agent.agent_tools import match_jobs
             match_result = match_jobs(skills=skills, city=city, edu=edu, exper=exper,
                                       target_job_ids=target_job_ids)
         except Exception:
-            return render_template('advice.html', match_error='匹配查询失败,请稍后重试',
+            return _render_advice('match', match_error='匹配查询失败,请稍后重试',
                                    match_skills=skills, match_city=city,
                                    match_edu=edu, match_exper=exper,
                                    match_interested=use_interested,
-                                   interested_jobs=interested_jobs, active_tab='match')
+                                   interested_jobs=interested_jobs)
 
         # 保存匹配结果到 session
         session['match_state'] = {
@@ -1231,12 +1233,12 @@ def advice():
         }
         session['advice_active_tab'] = 'match'
 
-        return render_template('advice.html', match_result=match_result,
+        return _render_advice('match', match_result=match_result,
                                match_skills=skills, match_city=city,
                                match_edu=edu, match_exper=exper,
                                match_interested=use_interested,
                                match_interested_ids=target_job_ids,
-                               interested_jobs=interested_jobs, active_tab='match')
+                               interested_jobs=interested_jobs)
 
     # --- 简历审查与优化工具 ---
     if tool == 'review':
@@ -1269,24 +1271,22 @@ def advice():
             hint = f'请粘贴简历文本或上传PDF/Word文件'
             if uploaded_name:
                 hint = f'无法从 "{uploaded_name}" 提取文本(请确认文件非空或尝试粘贴文本)'
-            return render_template('advice.html', review_error=hint,
+            return _render_advice('review', review_error=hint,
                                    review_text='', review_city=target_city,
                                    review_category=target_category,
                                    interested_jobs=interested_jobs,
-                                   review_interested_ids=target_job_ids,
-                                   active_tab='review')
+                                   review_interested_ids=target_job_ids)
         try:
             from agent.agent_tools import review_resume
             review_result = review_resume(resume_text, target_city=target_city,
                                           target_category=target_category,
                                           target_job_ids=target_job_ids)
         except Exception:
-            return render_template('advice.html', review_error='简历分析失败,请稍后重试',
+            return _render_advice('review', review_error='简历分析失败,请稍后重试',
                                    review_text=resume_text, review_city=target_city,
                                    review_category=target_category,
                                    interested_jobs=interested_jobs,
-                                   review_interested_ids=target_job_ids,
-                                   active_tab='review')
+                                   review_interested_ids=target_job_ids)
 
         review_id = str(uuid.uuid4())
         _review_store[review_id] = {
@@ -1299,15 +1299,14 @@ def advice():
         session['review_id'] = review_id
         session['advice_active_tab'] = 'review'
 
-        return render_template('advice.html', review_result=review_result,
+        return _render_advice('review', review_result=review_result,
                                review_text=resume_text, review_city=target_city,
                                review_category=target_category,
                                interested_jobs=interested_jobs,
-                               review_interested_ids=target_job_ids,
-                               active_tab='review')
+                               review_interested_ids=target_job_ids)
 
     # 未知工具类型，回退到 Agent
-    return render_template('advice.html', error='未知工具类型', active_tab='agent')
+    return _render_advice('agent', error='未知工具类型')
 
 
 @csrf.exempt
