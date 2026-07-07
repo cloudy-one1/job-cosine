@@ -73,18 +73,19 @@ project1/
 │
 ├── agent/                    # Agent 层：大模型对话
 │   ├── agent_core.py            — 预加载DB概览+单次LLM调用 + DeepSeek/千问双模型 fallback
-│   └── agent_tools.py           — 工具注册与查询函数 (含技能分析/学历溢价/相似方向)
+│   └── agent_tools.py           — 工具注册与查询函数 (query_jobs/match_jobs/review_resume/compare_jobs/skill_demand_analysis)
 │   └── resume_parser.py         — 简历文件解析 (PDF/DOCX → 纯文本)
 │
-├── templates/                # HTML 模板 (9 个页面, ECharts 可视化)
+├── templates/                # HTML 模板 (10 个页面, ECharts 可视化)
 │   ├── base.html, input.html, data.html
 │   ├── h.html (薪资/学历/经验/城市分布图+交叉分析+技能词云+AI图表解读)
 │   ├── ml.html (规则vs聚类对比图+城市分布图+方向卡片岗位明细入口)
 │   ├── cluster_jobs.html (点击 ml.html 方向卡片后展示该簇岗位列表)
-│   ├── advice.html (暖色调重设计:药丸导航+卡片布局+3-tab)
+│   ├── advice.html (暖色调重设计:药丸导航+卡片布局+4-tab:Agent/城市对比/岗位匹配/简历审查)
+│   ├── interested.html (感兴趣岗位收藏页,支持全选/清空/定位/对比清单)
 │   ├── collect.html
 │
-├── tests/                    # 测试 (213 个用例, 全部通过)
+├── tests/                    # 测试 (226 个用例, 全部通过)
 │   ├── test_app_routes.py       — 路由与安全回归测试
 │   ├── test_advice_route.py     — advice 功能测试
 │   ├── test_agent_loop.py       — Agent 逻辑集成测试
@@ -158,7 +159,7 @@ python -c "from analysis.jobtitle import classify_batch; print(classify_batch())
 python -c "from modeling.job_clustering import run_clustering; print(run_clustering())"
 python -c "from modeling.salary_predict import lookup_salary_range; print(lookup_salary_range('北京','后端开发'))"
 python -c "from data.fix_duplicate_address import fix_addresses; print(fix_addresses())"
-python -m pytest tests/ -v   # 运行全部测试 (184 个用例, 全部通过)
+python -m pytest tests/ -v   # 运行全部测试 (226 个用例, 全部通过)
 ```
 
 ### 方式二：Docker 部署（推荐用于服务器/长期运行）
