@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>招聘信息实时数据分析系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+    <style>
+    :root{
+        --paper:#F4F2ED;
+        --card:#FCFAF6;
+        --ink:#1F2320;
+        --ink-soft:#667066;
+        --stamp:#C44F3A;
+        --brass:#A08945;
+        --line:#DAD6CC;
+        --teal:#3A7A6A;
+        --teal-soft:#E8F1ED;
+        --accent:#C44F3A;
+        --accent-light:#FDF0EC;
+        --gold:#A08945;
+    }
+        *{ box-sizing:border-box; }
+        html{ scroll-behavior:smooth; }
+        body{
+            margin:0; background:var(--paper); color:var(--ink);
+            font-family:'Noto Sans SC',sans-serif; font-size:17px; line-height:1.7;
+            padding-top:72px;
+        }
+        a{ color:var(--teal); text-decoration:none; }
+        a:hover{ color:var(--stamp); }
+        a:focus-visible, button:focus-visible, input:focus-visible{
+            outline:2px solid var(--stamp); outline-offset:2px;
+        }
+        h1,h2,h3,h4,h5{
+            font-family:'Noto Serif SC',serif; font-weight:900; color:var(--ink); margin:0 0 .4em;
+        }
+        .mono{ font-family:'JetBrains Mono',monospace; }
+        .eyebrow{
+            font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:.12em;
+            color:var(--ink-soft); text-transform:uppercase; margin:0 0 8px;
+        }
+
+    /* ---------- nav ---------- */
+    .navbar{
+        position:fixed; top:0; left:0; right:0; z-index:100;
+        background:rgba(252,250,246,.92);
+        backdrop-filter:blur(12px);
+        -webkit-backdrop-filter:blur(12px);
+        border-bottom:1px solid var(--line);
+    }
+    .navbar .container{
+        max-width:1560px; margin:0 auto; padding:14px 36px;
+        display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    }
+    .navbar-header{ display:flex; flex-direction:column; }
+    .navbar-brand{
+        font-family:'Noto Serif SC',serif; font-weight:900; font-size:21px;
+        color:var(--ink) !important; display:flex; align-items:center; gap:10px;
+    }
+    .navbar-brand::before{
+        content:"招"; display:inline-flex; align-items:center; justify-content:center;
+        width:34px; height:34px; border-radius:50%; flex-shrink:0;
+        background:var(--accent); color:#fff;
+        font-size:15px; font-weight:900; transform:rotate(-6deg);
+    }
+    .brand-tagline{
+        font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.14em;
+        color:var(--ink-soft); text-transform:uppercase; margin-top:2px; margin-left:44px;
+    }
+    ul.nav.navbar-nav{
+        list-style:none; display:flex; gap:6px; margin:0; padding:0; flex-wrap:wrap;
+        align-items:center;
+    }
+    ul.nav.navbar-nav li a{
+        color:var(--ink-soft); font-weight:500; font-size:15px;
+        padding:8px 18px; border-radius:22px; display:inline-block;
+        transition:.2s ease;
+        position:relative;
+    }
+    ul.nav.navbar-nav li a:hover{
+        color:var(--ink); background:rgba(196,79,58,.06);
+    }
+    ul.nav.navbar-nav li a.nav-active{
+        color:var(--accent); font-weight:700;
+        background:var(--accent-light);
+    }
+
+    /* ---------- layout ---------- */
+    .container-main{ max-width:1560px; margin:0 auto; padding:40px 48px 80px; }
+
+    /* ---------- card / ledger record ---------- */
+    .card, .well{
+        background:var(--card); border:1px solid var(--line); border-radius:20px;
+        padding:32px 36px; position:relative; margin-bottom:12px;
+        box-shadow:0 1px 4px rgba(0,0,0,.03);
+    }
+        .card[data-no]::before, .well[data-no]::before{
+            content:attr(data-no); position:absolute; top:-12px; left:24px;
+            background:var(--paper); padding:0 10px;
+            font-family:'JetBrains Mono',monospace; font-size:12px;
+            letter-spacing:.08em; color:var(--brass);
+        }
+
+        /* ---------- stamp signature ---------- */
+    .stamp{
+        display:inline-flex; align-items:center; justify-content:center;
+        width:64px; height:64px; border-radius:50%; flex-shrink:0;
+        border:2px solid var(--accent); color:var(--accent);
+        font-family:'Noto Serif SC',serif; font-weight:900; font-size:13px;
+        line-height:1.2; transform:rotate(-9deg); letter-spacing:.03em; text-align:center;
+    }
+
+    /* ---------- buttons ---------- */
+    .btn{
+        display:inline-flex; align-items:center; justify-content:center; gap:8px;
+        font-family:'Noto Sans SC',sans-serif; font-weight:600;
+        font-size:15px; padding:12px 28px; border-radius:26px; border:none;
+        background:var(--card); color:var(--ink); cursor:pointer; transition:.2s ease;
+        box-shadow:0 1px 3px rgba(0,0,0,.05);
+        text-decoration:none;
+    }
+    .btn:hover{ background:var(--ink); color:var(--paper); box-shadow:0 4px 14px rgba(0,0,0,.12); }
+    .btn-primary{ background:var(--accent); color:#fff; }
+    .btn-primary:hover{ background:#A83E2E; box-shadow:0 4px 16px rgba(196,79,58,.3); }
+    .btn-outline{
+        background:transparent; border:1.5px solid var(--line); box-shadow:none;
+    }
+    .btn-outline:hover{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+    /* 向后兼容旧类名 */
+    .btn-info{ background:var(--accent); color:#fff; }
+    .btn-info:hover{ background:#A83E2E; box-shadow:0 4px 16px rgba(196,79,58,.3); }
+    .btn-default{ background:var(--card); border:1.5px solid var(--line); }
+
+    /* 感兴趣收藏按钮 — 描边药丸, 与数据页交互蓝一致 */
+    .interest-btn{
+        border:1.5px solid #2563eb; background:transparent; color:#2563eb;
+        border-radius:999px; padding:4px 12px; font-size:12px; font-weight:600;
+        cursor:pointer; transition:all .2s ease; white-space:nowrap; font-family:'Noto Sans SC',sans-serif;
+    }
+    .interest-btn:hover{ background:#2563eb; color:#fff; transform:scale(1.06); }
+    .interest-btn.interested{
+        background:#2563eb; color:#fff; border-color:#2563eb;
+        box-shadow:0 4px 12px rgba(37,99,235,.3);
+    }
+
+    /* 导航收藏数量角标 */
+    .nav-badge{
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:18px; height:18px; padding:0 5px; margin-left:6px;
+        background:var(--accent); color:#fff; border-radius:999px;
+        font-size:11px; font-weight:700; line-height:1;
+    }
+
+        /* ---------- forms ---------- */
+        .form-control{
+            width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:12px;
+            background:#fff; font-family:'Noto Sans SC',sans-serif; font-size:16px; color:var(--ink);
+        }
+        .form-control:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-soft); }
+        .form-group{ margin-bottom:16px; }
+        .form-group label{ display:block; font-size:15px; color:var(--ink-soft); margin-bottom:8px; font-weight:600; }
+        .input-group{ display:flex; }
+        .input-group .form-control{ border-radius:12px 0 0 12px; }
+        .input-group-btn .btn{ border-radius:0 12px 12px 0; border-left:none; }
+
+        /* ---------- table ---------- */
+        .table{ width:100%; border-collapse:collapse; }
+        .table th{
+            text-align:left; font-family:'JetBrains Mono',monospace; font-size:12px;
+            letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);
+            border-bottom:2px solid var(--ink); padding:12px 14px;
+        }
+        .table td{ padding:14px 14px; border-bottom:1px solid var(--line); font-size:16px; }
+        .table-bordered td, .table-bordered th{ border:1px solid var(--line); }
+        .table-bordered th{ border-bottom:2px solid var(--ink); }
+        .table-striped tr:nth-child(even) td{ background:var(--paper); }
+
+    /* ---------- alerts ---------- */
+    .alert{ padding:14px 18px; border-radius:14px; border-left:4px solid; font-size:16px; }
+    .alert-danger{ background:var(--accent-light); border-color:var(--accent); color:#9B3025; }
+    .alert-info{ background:var(--teal-soft); border-color:var(--teal); color:#1D4F42; }
+
+        /* ---------- motion ---------- */
+        @media (prefers-reduced-motion: no-preference){
+            .fade-up{ animation:fadeUp .6s ease both; }
+            @keyframes fadeUp{ from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;} }
+        }
+
+        /* ---------- restored badge ---------- */
+        .restored-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #e8f5e9; color: #2e7d32; font-size: 12px; font-weight: 600;
+            padding: 6px 14px; border-radius: 3px; margin-bottom: 16px;
+        }
+        .restored-badge a {
+            color: #c62828; text-decoration: none; font-weight: 400;
+            margin-left: 4px; border-bottom: 1px dashed #c62828;
+        }
+        .restored-badge a:hover { opacity: 0.7; }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:800px){
+        body{ padding-top:108px; }
+        .card, .well{ padding:24px 20px; }
+    }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}">
+    <script>
+      /* 防 FOUC：body 绘制前先套用已记忆的主题，避免闪白 */
+      try{ if(localStorage.getItem('theme')==='dark'){ document.documentElement.classList.add('theme-dark'); } }catch(e){}
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="/">招聘信息实时数据分析系统</a>
+                <span class="brand-tagline">让数据为求职导航</span>
+            </div>
+        <ul class="nav navbar-nav">
+            <li><a href="/">首页</a></li>
+            <li><a href="/list">数据展示</a></li>
+            <li><a href="/chart/city">图表分析</a></li>
+            <li><a href="/ml">薪资洞察</a></li>
+            <li><a href="/advice">智能助手</a></li>
+            <li><a href="/interested">我的收藏<span class="nav-badge" id="interested-badge"{% if not interested_count %} style="display:none;"{% endif %}>{{ interested_count }}</span></a></li>
+        </ul>
+        <button id="theme-toggle" class="theme-toggle" type="button" title="切换页面风格（米色 / 深色）">🌗 切换风格</button>
+        </div>
+    </nav>
+
+    <div class="container-main">
+        {% block content %}{% endblock %}
+    </div>
+    <script src="{{ url_for('static', filename='theme-toggle.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

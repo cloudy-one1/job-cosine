@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+
+<p class="eyebrow">实时采集结果</p>
+<h2 style="margin-bottom:20px; font-size:30px;">采集结果</h2>
+
+{% if restored %}
+<div class="restored-badge">
+    已恢复上次采集结果 <a href="/collect?clear_collect=1" title="清除采集结果">清除</a>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if success_count is defined %}
+<div class="alert alert-info">
+    采集完成: 关键词"{{ keyword }}"{% if city %} · 城市"{{ city }}"{% endif %},
+    共抓到 {{ total_count }} 条,成功写入数据库 <span class="mono">{{ success_count }}</span> 条
+    (已更新最新数据)。
+    {% if pages_collected and pages_per_city %}
+    <br>
+    <small style="color:#666;">
+        各城市翻页情况（目标 {{ pages_per_city }} 页/城）：
+        {% for city_name, pg in pages_collected.items() %}
+            {{ city_name }}: {{ pg }} 页{% if not loop.last %} · {% endif %}
+        {% endfor %}
+    </small>
+    {% endif %}
+    <br>
+    <a href="/list?kw={{ keyword }}&city={{ city }}">查看刚采集的数据 →</a> ·
+    <a href="/chart">查看更新后的图表 →</a> ·
+    <a href="/ml">查看更新后的薪资洞察 →</a>
+</div>
+{% endif %}
+
+<a href="/" class="btn btn-default" style="margin-top:20px;">← 返回首页继续查询/采集</a>
+
+{% endblock %}

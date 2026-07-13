@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .btn-detail {
+        background: linear-gradient(135deg, #FF6B35, #F7931E);
+        border-color: #FF6B35;
+        color: white;
+        transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .btn-detail:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        filter: brightness(1.1);
+    }
+</style>
+
+<p class="eyebrow">岗位详情</p>
+<h2 style="margin-bottom:18px;">职位档案详情</h2>
+
+{% if error %}
+<div class="card" style="border-left: 4px solid var(--stamp);">
+    <p style="color:var(--stamp); font-weight:600; margin:0;">{{ error }}</p>
+</div>
+{% elif job %}
+<div class="card" style="border-left: 4px solid var(--teal);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h3 style="margin:0 0 8px 0; color:var(--ink); font-size:22px;">{{ job.post }}</h3>
+            <p style="margin:0; color:var(--ink-soft); font-size:15px;">
+                <span style="margin-right:16px;">🏢 {{ job.company or '未披露' }}</span>
+                <span>📍 {{ job.address }}</span>
+            </p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="{{ url_for('list_data') }}" class="btn btn-default" style="text-decoration:none; font-size:14px;">
+                ← 返回列表
+            </a>
+            <button type="button" id="detail-interest-btn"
+                    class="interest-btn{% if job.id in session.get('interested_jobs', []) %} interested{% endif %}"
+                    onclick="toggleInterest({{ job.id }}, this)">
+                <span class="interest-label">{{ '已收藏' if job.id in session.get('interested_jobs', []) else '感兴趣' }}</span>
+            </button>
+            {% if job.job_url %}
+            <a href="{{ job.job_url }}" target="_blank" class="btn btn-info btn-detail" style="text-decoration:none; font-size:14px;">
+                🔗 查看详情
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px; padding:16px; background:var(--paper); border-radius:12px;">
+        <div>
+            <div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">薪资范围</div>
+            <div style="font-size:20px; font-weight:700; color:var(--teal);" class="mono">
+                {{ "%.1f"|format(job.salary_min) }}-{{ "%.1f"|format(job.salary_max) }}K
+            </div>
+        </div>
+        <div>
+            <div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">学历要求</div>
+            <div style="font-size:16px; font-weight:600;">{{ job.edu or '不限' }}</div>
+        </div>
+        <div>
+            <div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">经验要求</div>
+            <div style="font-size:16px; font-weight:600;">{{ job.exper or '不限' }}</div>
+        </div>
+        <div>
+            <div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">发布时间</div>
+            <div style="font-size:15px;">{{ job.dateT or '未知' }}</div>
+        </div>
+    </div>
+
+    {% if job.content %}
+    <div>
+        <h4 style="margin:0 0 12px 0; font-size:18px; color:var(--ink);">职位描述 <span style="font-size:13px; color:var(--ink-soft); font-weight:400;"></span></h4>
+        <div style="padding:16px; background:var(--paper); border-radius:12px; line-height:1.8; white-space:pre-wrap; font-size:15px; color:var(--ink); max-height:400px; overflow-y:auto;">
+{{ job.content }}
+        </div>
+    </div>
+    {% else %}
+    <div style="padding:20px; text-align:center; color:var(--ink-soft); font-size:15px;">
+        该职位暂无详细描述信息
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="card">
+    <p style="color:var(--ink-soft); text-align:center; padding:30px 0; margin:0;">
+        数据加载中...
+    </p>
+</div>
+{% endif %}
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
+
+<script>
+function toggleInterest(jobId, btn) {
+    var token = document.getElementById('csrf-token').value;
+    fetch('/toggle_interest', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'job_id=' + encodeURIComponent(jobId)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (!d || d.error) return;
+        btn.classList.toggle('interested', d.interested);
+        var label = btn.querySelector('.interest-label');
+        if (label) label.textContent = d.interested ? '已收藏' : '感兴趣';
+        var badge = document.getElementById('interested-badge');
+        if (badge) {
+            badge.textContent = d.count;
+            badge.style.display = d.count > 0 ? 'inline-flex' : 'none';
+        }
+    })
+    .catch(function () {});
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    /* 岗位链接 — 默认与周围文字完全一致 */
+    .job-link {
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: inherit;
+        display: inline-block;
+        transition: color 0.2s ease;
+    }
+    .job-link:hover {
+        color: #2563eb;
+    }
+
+    /* 表格行悬停 — 整行变大变色浮动，点击整行跳转 */
+    .data-row {
+        transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+        cursor: pointer;
+    }
+    .data-row:hover {
+        transform: translateY(-3px) scale(1.02);
+        background-color: #eef2ff;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.18);
+        position: relative;
+        z-index: 10;
+    }
+    .data-row:hover td {
+        color: #2563eb;
+    }
+    .data-row:hover .job-link {
+        color: #2563eb;
+    }
+
+    /* 圆角表格 */
+    .table { border-radius:12px; overflow:hidden; border-collapse:separate; border-spacing:0; }
+    .table th:first-child{ border-top-left-radius:12px; }
+    .table th:last-child{ border-top-right-radius:12px; }
+
+</style>
+
+<p class="eyebrow">数据展示</p>
+<h2 style="margin-bottom:18px;">招聘数据档案</h2>
+
+<form method="get" action="/list" style="margin-bottom:20px;">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="form-group" style="flex:1; min-width:200px; margin-bottom:0;">
+            <label>岗位名称</label>
+            <input type="text" class="form-control" name="kw" value="{{ kw or '' }}"
+                   placeholder="如: python开发工程师">
+        </div>
+        <div class="form-group" style="flex:1; min-width:180px; margin-bottom:0;">
+            <label>城市</label>
+            <input type="text" class="form-control" name="city" value="{{ city or '' }}"
+                   placeholder="如: 北京,上海">
+        </div>
+        <button class="btn btn-info" type="submit" style="padding:12px 32px;">🔍 搜索</button>
+    </div>
+    <p style="margin:6px 0 0 0; font-size:13px; color:var(--ink-soft);">精确匹配，请输入完整岗位名称或城市</p>
+</form>
+
+<div class="card" data-no="共 {{ total }} 条记录">
+    {% if rows %}
+    <table class="table table-bordered table-striped">
+        <tr>
+            <th>职位</th><th>公司</th><th>城市</th><th>最低薪资(千元)</th><th>最高薪资(千元)</th><th>发布时间</th><th>感兴趣</th>
+        </tr>
+        {% for row in rows %}
+        {% set interested = row[0] in session.get('interested_jobs', []) %}
+        <tr class="data-row" onclick="window.location='{{ url_for('job_detail', job_id=row[0]) }}'">
+            <td><a href="{{ url_for('job_detail', job_id=row[0]) }}" class="job-link">{{ row[1] }}</a></td>
+            <td>{{ row[2] or '-' }}</td>
+            <td>{{ row[3] }}</td>
+            <td class="mono">{{ row[4] }}</td>
+            <td class="mono">{{ row[5] }}</td>
+            <td>{{ row[6] }}</td>
+            <td>
+                <button type="button" class="interest-btn{% if interested %} interested{% endif %}"
+                        onclick="event.stopPropagation(); toggleInterest({{ row[0] }}, this)">
+                    <span class="interest-label">{{ '已收藏' if interested else '感兴趣' }}</span>
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p style="color:var(--ink-soft); text-align:center; padding:30px 0; margin:0;">
+        没有找到匹配的记录,换个关键词试试,比如"爬虫"或"杭州"。
+    </p>
+    {% endif %}
+</div>
+
+<div style="text-align:center; margin:24px 0;">
+    {% if page > 1 %}
+        <a href="{{ url_for('list_data', page=page-1, kw=kw or '', city=city or '') }}" class="btn btn-default">← 上一页</a>
+    {% endif %}
+    <span class="mono" style="margin:0 16px; color:var(--ink-soft); font-size:14px;">第 {{ page }} / {{ total_pages }} 页</span>
+    {% if page < total_pages %}
+        <a href="{{ url_for('list_data', page=page+1, kw=kw or '', city=city or '') }}" class="btn btn-default">下一页 →</a>
+    {% endif %}
+</div>
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
+
+<script>
+function toggleInterest(jobId, btn) {
+    var token = document.getElementById('csrf-token').value;
+    fetch('/toggle_interest', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'job_id=' + encodeURIComponent(jobId)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (!d || d.error) return;
+        btn.classList.toggle('interested', d.interested);
+        var label = btn.querySelector('.interest-label');
+        if (label) label.textContent = d.interested ? '已收藏' : '感兴趣';
+        var badge = document.getElementById('interested-badge');
+        if (badge) badge.textContent = d.count;
+    })
+    .catch(function () {});
+}
+</script>
+
+{% endblock %}

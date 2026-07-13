@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    /* 岗位链接 — 默认与周围文字完全一致 */
+    .job-link {
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: inherit;
+        display: inline-block;
+        transition: color 0.2s ease;
+    }
+    .job-link:hover {
+        color: #2563eb;
+    }
+
+    /* 表格行悬停 — 整行变大变色浮动，点击整行跳转 */
+    .data-row {
+        transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+        cursor: pointer;
+    }
+    .data-row:hover {
+        transform: translateY(-3px) scale(1.02);
+        background-color: #eef2ff;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.18);
+        position: relative;
+        z-index: 10;
+    }
+    .data-row:hover td {
+        color: #2563eb;
+    }
+    .data-row:hover .job-link {
+        color: #2563eb;
+    }
+
+    /* 圆角表格 */
+    .table { border-radius:12px; overflow:hidden; border-collapse:separate; border-spacing:0; }
+    .table th:first-child{ border-top-left-radius:12px; }
+    .table th:last-child{ border-top-right-radius:12px; }
+</style>
+
+<p class="eyebrow">方向岗位明细</p>
+<h2 style="margin-bottom:6px;">{{ cluster.auto_label }}</h2>
+<p style="margin:0 0 20px 0; color:var(--ink-soft); font-size:14px;">
+    共 {{ cluster.count }} 个岗位 · 均薪 {{ "%.1f"|format(cluster.avg_salary) }}K · 范围 {{ cluster.min_salary }}K - {{ cluster.max_salary }}K
+</p>
+
+<div class="card" data-no="岗位列表">
+    {% if rows %}
+    <table class="table table-bordered table-striped">
+        <tr>
+            <th>职位</th><th>公司</th><th>地址</th><th>最低薪资(千元)</th><th>最高薪资(千元)</th><th>发布日期</th>
+
+        </tr>
+        {% for row in rows %}
+        <tr class="data-row" onclick="window.location='{{ url_for('job_detail', job_id=row[0]) }}'">
+            <td><a href="{{ url_for('job_detail', job_id=row[0]) }}" class="job-link">{{ row[1] }}</a></td>
+            <td>{{ row[2] or '-' }}</td>
+            <td>{{ row[3] }}</td>
+            <td class="mono">{{ row[4] }}</td>
+            <td class="mono">{{ row[5] }}</td>
+            <td>{{ row[6] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p style="color:var(--ink-soft); text-align:center; padding:30px 0; margin:0;">
+        该方向暂无岗位数据。
+    </p>
+    {% endif %}
+</div>
+
+<div style="margin-top:24px; text-align:center;">
+    <a href="{{ url_for('ml_page') }}" class="btn btn-default">← 返回岗位聚类分析</a>
+</div>
+
+{% endblock %}

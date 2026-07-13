@@ -1,0 +1,1078 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+/* ---------- sidebar layout ---------- */
+.ml-layout{ display:flex; gap:24px; align-items:flex-start; }
+.ml-sidebar{
+    width:220px; flex-shrink:0; background:var(--card);
+    border:1px solid var(--line); border-radius:16px; overflow:hidden;
+    position:sticky; top:88px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.ml-sidebar ul{ list-style:none; padding:0; margin:0; }
+.ml-sidebar li{ border-bottom:1px solid var(--line); }
+.ml-sidebar li:last-child{ border-bottom:none; }
+.ml-sidebar li a{
+    display:flex; align-items:center; gap:10px;
+    padding:18px 18px; font-size:15px; font-weight:600;
+    color:var(--ink-soft); text-decoration:none; transition:.25s ease;
+    border-left:4px solid transparent;
+    position:relative;
+}
+.ml-sidebar li a .ml-nav-icon{ font-size:18px; flex-shrink:0; }
+.ml-sidebar li a:hover{
+    color:var(--ink); background:#FAF5E8;
+    border-left-color:var(--stamp);
+    transform: scale(1.04) translateX(4px);
+    box-shadow: 0 4px 16px rgba(140,59,50,.10);
+    z-index:5;
+}
+.ml-sidebar li a.active{
+    color:var(--ink); font-weight:700; background:#FAF5E8;
+    border-left-color:var(--stamp);
+}
+.ml-main{ flex:1; min-width:0; }
+
+@media (max-width:800px){
+    .ml-layout{ flex-direction:column; }
+    .ml-sidebar{ width:100%; position:static; border-radius:12px; }
+    .ml-sidebar ul{ display:flex; flex-wrap:wrap; }
+    .ml-sidebar li{ border-bottom:none; border-right:1px solid var(--line); flex:1 1 33%; }
+    .ml-sidebar li a{ border-left:none; border-bottom:3px solid transparent; padding:12px 14px; font-size:13px; }
+    .ml-sidebar li a.active{ border-left-color:transparent; border-bottom-color:var(--stamp); }
+    .ml-sidebar li a .ml-nav-icon{ font-size:15px; }
+    .ml-sidebar li a:hover{ transform: scale(1.02); }
+}
+
+.dir-card{
+    transition: transform .2s ease, box-shadow .2s ease !important;
+    will-change: transform;
+}
+.dir-card:hover{
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 16px 34px rgba(28,38,32,0.14);
+}
+.ai-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:50%;
+    background: linear-gradient(135deg, #8C3B32, #2E6E5E);
+    color:#fff; font-size:11px; font-weight:700; cursor:pointer;
+    margin-left:10px; flex-shrink:0;
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+.ai-badge:hover{
+    transform: scale(1.15);
+    box-shadow: 0 4px 16px rgba(46,110,94,.35);
+}
+</style>
+
+<p class="eyebrow">薪资洞察</p>
+<h2 style="margin-bottom:24px; font-size:30px;">岗位聚类分析与薪资洞察</h2>
+
+<div class="ml-layout">
+    <!-- ===== 左侧导航 ===== -->
+    <nav class="ml-sidebar">
+        <ul>
+            <li><a href="#ml-overview" data-target="ml-overview"><span class="ml-nav-icon">📊</span>概览 &amp; 聚类</a></li>
+            <li><a href="#ml-directions" data-target="ml-directions"><span class="ml-nav-icon">🧭</span>方向详情</a></li>
+            <li><a href="#ml-heatmap" data-target="ml-heatmap"><span class="ml-nav-icon">🔥</span>技能热力图</a></li>
+            <li><a href="#ml-similarity" data-target="ml-similarity"><span class="ml-nav-icon">🔗</span>相似度网络</a></li>
+            <li><a href="#ml-salary-curve" data-target="ml-salary-curve"><span class="ml-nav-icon">📈</span>薪资曲线</a></li>
+            <li><a href="#ml-edu-premium" data-target="ml-edu-premium"><span class="ml-nav-icon">🎓</span>学历溢价</a></li>
+            <li><a href="#ml-salary-predict" data-target="ml-salary-predict"><span class="ml-nav-icon">🎯</span>薪资预测模型</a></li>
+        </ul>
+    </nav>
+
+    <!-- ===== 右侧内容区 ===== -->
+    <div class="ml-main">
+
+{% if not clustering %}
+<div class="card" data-no="提示" id="ml-overview">
+    <p style="margin:0; color:var(--ink-soft);">聚类模型尚未训练，请先执行数据采集。</p>
+</div>
+{% else %}
+
+<!-- 统计卡片 -->
+<div id="ml-overview" style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:24px;">
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="样本">
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">{{ total_jobs }}</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">参与分析岗位数</div>
+    </div>
+    <div class="card" style="flex:1; min-width:180px; text-align:center;" data-no="聚类数">
+        <div style="font-size:42px; font-weight:800; color:var(--stamp);">{{ clustering.k }}</div>
+        <div style="color:var(--ink-soft); font-size:14px; margin-top:4px;">自动聚类方向数</div>
+    </div>
+</div>
+
+<!-- 各方向岗位规模与均薪 -->
+<div class="card" data-no="方向规模" style="margin-bottom:20px;">
+    <h3 style="margin-top:0; margin-bottom:12px; font-size:20px; display:flex; align-items:center;">
+        各方向岗位规模与平均薪资
+        <span class="ai-badge" onclick="showAI(event,'cluster')" title="AI 解读聚类分析">AI</span>
+    </h3>
+    <div id="cluster_overview" style="width:100%; height:{{ [700, clustering.clusters|length * 100 + 160]|max }}px;"></div>
+</div>
+
+
+<!-- 方向详情 -->
+<h2 id="ml-directions" style="margin-top:36px; margin-bottom:18px;">方向详情</h2>
+<div style="display:flex; gap:18px; flex-wrap:wrap;">
+    {% for c in clustering.clusters %}
+    <a href="{{ url_for('cluster_jobs', cluster_id=c.cluster_id) }}"
+       style="display:block; flex:1 1 300px; min-width:280px; text-decoration:none; color:inherit;"
+       title="查看该方向包含的岗位列表">
+    <div class="card dir-card" style="padding:20px 22px 18px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <h4 style="margin:0; font-size:18px; color:var(--ink);">{{ c.auto_label }}</h4>
+            <span class="mono" style="font-size:14px; color:var(--stamp); font-weight:700;">{{ c.count }} 岗</span>
+        </div>
+        <div style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">
+                <span>均薪 {{ "%.1f"|format(c.avg_salary) }}K</span>
+                <span>{{ c.min_salary }}K - {{ c.max_salary }}K</span>
+            </div>
+            <div style="height:8px; background:#EDEFE8; border-radius:4px; overflow:hidden;">
+                <div style="width:{{ (c.avg_salary / 50 * 100)|round|int if c.avg_salary < 50 else 100 }}%; height:100%; background:var(--stamp); border-radius:4px;"></div>
+            </div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            {% for kw in c.top_keywords[:8] %}
+            <span style="font-size:13px; padding:3px 8px; background:#F7F6F2; border-radius:20px; color:var(--ink-soft);">{{ kw }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    </a>
+    {% endfor %}
+</div>
+
+{% endif %}
+
+
+{% if clustering %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>
+var IS_DARK, TEXT, SOFT, STAMP, COLORS, HEAT;
+function recalcMlColors() {
+    IS_DARK = document.documentElement.classList.contains('theme-dark');
+    TEXT = IS_DARK ? '#FFFFFF' : '#3D3B37';
+    SOFT = IS_DARK ? 'rgba(255,255,255,0.6)' : '#6F6D67';
+    STAMP = IS_DARK ? '#B48CFF' : '#8C3B32';
+    COLORS = IS_DARK
+      ? ['#5DE0E6', '#FF6EC7', '#FFB84D', '#B48CFF', '#FF7B8A', '#6EA8FF']
+      : ['#8C3B32', '#B56557', '#4E6E58', '#7A8F73', '#A59A8B', '#C9B8A8'];
+    HEAT = IS_DARK
+      ? ['#16203A', '#2E3A6E', '#4E6E9E', '#5DE0E6', '#FF6EC7']
+      : ['#F7F6F2', '#E8D5C4', '#C9A88C', '#B56557', '#8C3B32'];
+}
+recalcMlColors();
+window._mlCharts = {};
+
+function renderClusterOverview(){
+    var clusters = {{ clustering.clusters|tojson }};
+    var labels = clusters.map(function(c){ return c.auto_label; });
+    var counts = clusters.map(function(c){ return c.count; });
+    var avgs = clusters.map(function(c){ return c.avg_salary; });
+
+    // 方向规模 + 均薪
+    if (window._mlCharts.cluster_overview) window._mlCharts.cluster_overview.dispose();
+    var overview = echarts.init(document.getElementById('cluster_overview'));
+    window._mlCharts.cluster_overview = overview;
+    overview.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 156, right: 80, top: 20, bottom: 52 },
+        legend: {
+            data: ['岗位数', '均薪(K)'], bottom: 0,
+            textStyle: { color: SOFT, fontSize: 15 }
+        },
+        xAxis: { type: 'value', axisLine: {show:false}, splitLine: {lineStyle: {color:'#EDEFE8'}},
+                 axisLabel: { color: SOFT, fontSize: 14 } },
+        yAxis: { type: 'category', data: labels.reverse(),
+                 axisLine: {lineStyle:{color:'#D8D6CF'}}, axisTick:{show:false},
+                 axisLabel: { color: TEXT, fontSize: 15, fontWeight: 500 } },
+        series: [
+            {
+                name: '岗位数', type: 'bar', data: counts.reverse(),
+                barWidth: '36%', itemStyle: { borderRadius: [0,3,3,0], color: COLORS[0] },
+                label: { show: true, position: 'right', color: SOFT, fontSize: 14 }
+            },
+            {
+                name: '均薪(K)', type: 'line', data: avgs.reverse(),
+                smooth: true, symbol: 'circle', symbolSize: 7,
+                itemStyle: { color: COLORS[2] }, lineStyle: { width: 2 },
+                yAxisIndex: 0
+            }
+        ]
+    });
+
+}
+renderClusterOverview();
+if (!window._mlResizeBound) { window._mlResizeBound = true; window.addEventListener('resize', function(){ for(var k in window._mlCharts) if(window._mlCharts[k]) window._mlCharts[k].resize(); }); }
+</script>
+
+<!-- ====== 新增：四个深度分析模块 ====== -->
+
+<!-- 1. 技能供需热力图 -->
+{% if heatmap and not heatmap.error %}
+<h2 id="ml-heatmap" style="margin-top:44px; margin-bottom:20px; display:flex; align-items:center;">
+    技能·城市薪资热力图
+    <span class="ai-badge" onclick="showAI(event,'heatmap')" title="AI 解读热力图">AI</span>
+</h2>
+<p style="color:var(--ink-soft); font-size:14px; margin-top:-12px; margin-bottom:16px;">
+    展示各技术技能在不同城市的平均薪资水平（单位：K/月），颜色越深薪资越高。
+</p>
+<div class="card" data-no="热力图">
+    <div id="skill_heatmap" style="width:100%; height:{{ [560, heatmap.skills|length * 40 + 140]|max }}px;"></div>
+</div>
+<script>
+function renderHeatmap(){
+    var hm = {{ heatmap|tojson }};
+    if (!hm.skills || !hm.cities || !hm.salary_matrix) return;
+    var data = [];
+    for (var i = 0; i < hm.skills.length; i++) {
+        for (var j = 0; j < hm.cities.length; j++) {
+            if (hm.salary_matrix[i][j] !== null) {
+                data.push([j, i, hm.salary_matrix[i][j]]);
+            }
+        }
+    }
+    if (window._mlCharts.heatmap) window._mlCharts.heatmap.dispose();
+    var chart = echarts.init(document.getElementById('skill_heatmap'));
+    window._mlCharts.heatmap = chart;
+    chart.setOption({
+        tooltip: {
+            position: 'top',
+            formatter: function(p) {
+                return hm.cities[p.value[0]] + ' · ' + hm.skills[p.value[1]]
+                    + '<br/>均薪: <b>' + p.value[2] + 'K</b>'
+                    + ' (' + hm.count_matrix[p.value[1]][p.value[0]] + '岗)';
+            }
+        },
+        grid: { left: 120, right: 40, top: 10, bottom: 60 },
+        xAxis: { type: 'category', data: hm.cities, axisLabel: {color:SOFT,fontSize:13},
+                 splitArea: {show:true, areaStyle:{color:['rgba(0,0,0,0)']}} },
+        yAxis: { type: 'category', data: hm.skills, axisLabel: {color:TEXT,fontSize:14,fontWeight:500},
+                 splitArea: {show:true, areaStyle:{color:['rgba(0,0,0,0)']}} },
+        visualMap: { min: 0, max: 40, calculable: true, orient: 'horizontal',
+                     left: 'center', bottom: 0, textStyle: {color:SOFT},
+                     inRange: {color: HEAT} },
+        series: [{ name: '均薪(K)', type: 'heatmap', data: data,
+                   label: { show: true, fontSize: 12, color: TEXT },
+                   emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } } }]
+    });
+}
+renderHeatmap();
+
+</script>
+{% elif heatmap and heatmap.error %}
+<div class="card" data-no="热力图" id="ml-heatmap" style="margin-bottom:20px;">
+    <p style="color:var(--ink-soft); margin:0;">技能热力图：{{ heatmap.error }}</p>
+</div>
+{% endif %}
+
+
+<!-- 2. 岗位相似度网络 -->
+{% if similarity and not similarity.error %}
+<h2 id="ml-similarity" style="margin-top:44px; margin-bottom:20px; display:flex; align-items:center;">
+    岗位方向相似度网络
+    <span class="ai-badge" onclick="showAI(event,'similarity')" title="AI 解读相似度网络">AI</span>
+</h2>
+<p style="color:var(--ink-soft); font-size:14px; margin-top:-12px; margin-bottom:16px;">
+    连线越粗表示两个方向共享的技能关键词越多，可作为转方向的参考。
+</p>
+<div class="card" data-no="相似度网络">
+    <div id="similarity_graph" style="width:100%; height:700px;"></div>
+</div>
+<script>
+function renderSimilarity(){
+    var net = {{ similarity|tojson }};
+    if (!net.nodes || net.nodes.length < 2) return;
+    // 为节点按大小分颜色
+    var maxSize = Math.max.apply(null, net.nodes.map(function(n){return n.size;}));
+    net.nodes.forEach(function(n){
+        n.symbolSize = Math.max(26, Math.round(n.size / maxSize * 90));
+        n.category = 0;
+        n.label = { show: true, fontSize: 15, fontWeight: 600, color: TEXT };
+    });
+    net.links.forEach(function(lk){
+        lk.lineStyle = { width: Math.max(1.5, lk.value * 10) };
+    });
+    if (window._mlCharts.similarity) window._mlCharts.similarity.dispose();
+    var chart = echarts.init(document.getElementById('similarity_graph'));
+    window._mlCharts.similarity = chart;
+    chart.setOption({
+        tooltip: {
+            formatter: function(p) {
+                if (p.dataType === 'edge') {
+                    return p.data.source + ' ↔ ' + p.data.target
+                        + '<br/>相似度: ' + (p.data.value * 100).toFixed(1) + '%';
+                }
+                return p.name + '<br/>岗位数: ' + p.data.size
+                    + '<br/>均薪: ' + p.data.avg_salary + 'K';
+            }
+        },
+        series: [{
+            type: 'graph', layout: 'force', roam: true, draggable: true,
+            center: ['50%', '50%'],
+            zoom: 1.25,
+            scaleLimit: { min: 0.6, max: 4 },
+            force: { repulsion: 1200, gravity: 0.25, edgeLength: [60, 160], friction: 0.15 },
+            edgeSymbol: ['none', 'none'],
+            edgeLabel: { show: true, fontSize: 12, color: SOFT,
+                         formatter: function(p){ return (p.data.value*100).toFixed(0)+'%'; } },
+            data: net.nodes,
+            links: net.links,
+            lineStyle: { color: COLORS[2], opacity: 0.55, curveness: 0.2 }
+        }]
+    });
+}
+renderSimilarity();
+</script>
+{% elif similarity and similarity.error %}
+<div class="card" data-no="相似度网络" id="ml-similarity" style="margin-bottom:20px;">
+    <p style="color:var(--ink-soft); margin:0;">岗位相似度：{{ similarity.error }}</p>
+</div>
+{% endif %}
+
+
+<!-- 3. 薪资成长曲线 -->
+{% if salary_curve and not salary_curve.error %}
+<h2 id="ml-salary-curve" style="margin-top:44px; margin-bottom:20px; display:flex; align-items:center;">
+    经验-薪资成长曲线
+    <span class="ai-badge" onclick="showAI(event,'salary_curve')" title="AI 解读薪资曲线">AI</span>
+</h2>
+<p style="color:var(--ink-soft); font-size:14px; margin-top:-12px; margin-bottom:16px;">
+    按经验等级分组的中位数薪资走势，可对比不同城市的薪资成长斜率。
+</p>
+<div class="card" data-no="薪资曲线">
+    <div id="salary_curve_chart" style="width:100%; height:560px;"></div>
+</div>
+<script>
+function renderSalaryCurve(){
+    var sc = {{ salary_curve|tojson }};
+    if (!sc.overall || sc.overall.length < 2) return;
+    var experLabels = sc.overall.map(function(d){return d.exper;});
+    var overallMedians = sc.overall.map(function(d){return d.median;});
+    var overallMeans = sc.overall.map(function(d){return d.mean;});
+
+    var cityColors = IS_DARK
+      ? ['#5DE0E6','#FF6EC7','#FFB84D','#B48CFF','#FF7B8A','#6EA8FF']
+      : ['#8C3B32','#4E6E58','#B56557','#7A8F73','#A59A8B','#C9B8A8'];
+    var series = [{
+        name: '整体中位数', type: 'line', data: overallMedians,
+        symbol: 'circle', symbolSize: 8, lineStyle: {width:3},
+        itemStyle: {color: cityColors[0]}
+    }, {
+        name: '整体均值', type: 'line', data: overallMeans,
+        symbol: 'diamond', symbolSize: 6,
+        lineStyle: {width:2, type:'dashed'},
+        itemStyle: {color: cityColors[1]}
+    }];
+    var ci = 2;
+    var cities = sc.cities || [];
+    var byCity = sc.by_city || {};
+    cities.forEach(function(city){
+        var cd = byCity[city];
+        if (!cd || cd.length < 2) return;
+        // 对齐 experience label
+        var cityData = experLabels.map(function(el){
+            var found = null;
+            cd.forEach(function(d){ if(d.exper===el) found=d.median; });
+            return found;
+        });
+        series.push({
+            name: city, type: 'line', data: cityData,
+            symbol: 'circle', symbolSize: 5,
+            lineStyle: {width:2},
+            itemStyle: {color: cityColors[ci % cityColors.length]}
+        });
+        ci++;
+    });
+
+    if (window._mlCharts.salary_curve) window._mlCharts.salary_curve.dispose();
+    var chart = echarts.init(document.getElementById('salary_curve_chart'));
+    window._mlCharts.salary_curve = chart;
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle: {color:SOFT,fontSize:13} },
+        grid: { left: 60, right: 30, top: 20, bottom: 50 },
+        xAxis: { type: 'category', data: experLabels,
+                 axisLabel: {color:SOFT,fontSize:14},
+                 boundaryGap: false },
+        yAxis: { type: 'value', name: 'K/月',
+                 axisLabel: {color:SOFT,fontSize:13},
+                 splitLine: {lineStyle:{color:'#EDEFE8'}} },
+        series: series
+    });
+}
+renderSalaryCurve();
+</script>
+{% elif salary_curve and salary_curve.error %}
+<div class="card" data-no="薪资曲线" id="ml-salary-curve" style="margin-bottom:20px;">
+    <p style="color:var(--ink-soft); margin:0;">薪资成长曲线：{{ salary_curve.error }}</p>
+</div>
+{% endif %}
+
+
+<!-- 4. 学历溢价分析 -->
+{% if edu_premium and not edu_premium.error and edu_premium.premiums %}
+<h2 id="ml-edu-premium" style="margin-top:44px; margin-bottom:20px; display:flex; align-items:center;">
+    学历溢价分析
+    <span class="ai-badge" onclick="showAI(event,'edu_premium')" title="AI 解读学历溢价">AI</span>
+</h2>
+<p style="color:var(--ink-soft); font-size:14px; margin-top:-12px; margin-bottom:16px;">
+    同城市同方向下不同学历的薪资对比。溢价 = 高学历均薪相对低学历均薪的增长百分比。
+</p>
+
+<!-- 整体学历分布 -->
+{% if edu_premium.overall %}
+<div class="card" data-no="整体学历薪资" style="margin-bottom:20px;">
+    <h3 style="margin-top:0; margin-bottom:14px; font-size:17px;">各学历层次整体薪资分布</h3>
+    <div id="edu_overall_bar" style="width:100%; height:420px;"></div>
+</div>
+<script>
+function renderEduOverall(){
+    var ep = {{ edu_premium|tojson }};
+    var eduOrder = ['博士','硕士','本科','大专','高中','不限'];
+    var names = [], medians = [], means = [], counts = [];
+    eduOrder.forEach(function(e){
+        if (ep.overall[e]) {
+            names.push(e);
+            medians.push(ep.overall[e].median);
+            means.push(ep.overall[e].avg_salary);
+            counts.push(ep.overall[e].count);
+        }
+    });
+    if (names.length < 2) return;
+    if (window._mlCharts.edu_overall) window._mlCharts.edu_overall.dispose();
+    var chart = echarts.init(document.getElementById('edu_overall_bar'));
+    window._mlCharts.edu_overall = chart;
+    chart.setOption({
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {type:'shadow'},
+            formatter: function(params){
+                var idx = params[0].dataIndex;
+                var out = names[idx] + ' (' + counts[idx] + '岗)<br/>';
+                params.forEach(function(p){ out += p.marker + p.seriesName + ': ' + p.value + 'K<br/>'; });
+                if (ep.overall[names[idx]]) {
+                    var rec = ep.overall[names[idx]];
+                    out += 'P25-P75: ' + rec.p25 + 'K ~ ' + rec.p75 + 'K';
+                }
+                return out;
+            }
+        },
+        legend: { data:['中位数','均值'], bottom:0, textStyle:{color:SOFT,fontSize:13} },
+        grid: { left:70, right:40, top:10, bottom:45 },
+        xAxis: { type:'category', data:names, axisLabel:{color:SOFT,fontSize:14} },
+        yAxis: { type:'value', name:'K/月', axisLabel:{color:SOFT},
+                 splitLine:{lineStyle:{color:'#EDEFE8'}} },
+        series: [
+            { name:'中位数', type:'bar', data:medians, barWidth:'32%',
+              itemStyle:{color:STAMP,borderRadius:[3,3,0,0]} },
+            { name:'均值', type:'bar', data:means, barWidth:'32%',
+              itemStyle:{color:IS_DARK ? '#FFB84D' : '#4E6E58',borderRadius:[3,3,0,0]} }
+        ]
+    });
+}
+renderEduOverall();
+</script>
+{% endif %}
+
+<!-- 溢价明细表 -->
+<div style="overflow-x:auto;">
+<table class="card" data-no="溢价明细" style="width:100%; border-collapse:collapse; font-size:14px;">
+    <thead>
+        <tr style="text-align:left; border-bottom:2px solid #EDEFE8;">
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">城市</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">方向</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">低学历</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">低学历均薪</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">高学历</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">高学历均薪</th>
+            <th style="padding:10px 14px; color:#6F6D67; font-weight:600;">溢价</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in edu_premium.premiums|sort(attribute='city') %}
+            {% for prem in p.premiums %}
+            <tr style="border-bottom:1px solid #F0EFE9;">
+                <td style="padding:10px 14px; font-weight:500;">{{ p.city }}</td>
+                <td style="padding:10px 14px;">{{ p.category }}</td>
+                <td style="padding:10px 14px; color:SOFT;">{{ prem.from }}</td>
+                <td style="padding:10px 14px;">{{ prem.from_avg }}K</td>
+                <td style="padding:10px 14px; color:SOFT;">{{ prem.to }}</td>
+                <td style="padding:10px 14px;">{{ prem.to_avg }}K</td>
+                <td style="padding:10px 14px; font-weight:700;
+                    {% if prem.premium_pct > 10 %}color:#4E6E58;
+                    {% elif prem.premium_pct < 0 %}color:#8C3B32;
+                    {% else %}color:var(--ink);{% endif %}">
+                    {{ '+' if prem.premium_pct > 0 else '' }}{{ prem.premium_pct }}%
+                </td>
+            </tr>
+            {% endfor %}
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% if not edu_premium.premiums %}
+<div class="card" data-no="溢价明细" style="margin-bottom:20px;">
+    <p style="color:var(--ink-soft); margin:0;">学历溢价：同城市同方向的学历层级数据不足（每组至少需 2 个学历层级各有 ≥3 个岗位），无法计算有意义的溢价。</p>
+</div>
+{% endif %}
+
+{% elif edu_premium and edu_premium.error %}
+<div class="card" data-no="学历溢价" id="ml-edu-premium" style="margin-bottom:20px;">
+    <p style="color:var(--ink-soft); margin:0;">学历溢价分析：{{ edu_premium.error }}</p>
+</div>
+{% endif %}
+
+
+<!-- 6. 薪资预测模型 -->
+{% if salary_classifier and not salary_classifier.error %}
+<h2 id="ml-salary-predict" style="margin-top:44px; margin-bottom:20px; display:flex; align-items:center;">
+    薪资预测模型
+    <span class="ai-badge" onclick="showAI(event,'salary_predict')" title="AI 解读薪资预测模型">AI</span>
+</h2>
+<p style="color:var(--ink-soft); font-size:14px; margin-top:-12px; margin-bottom:16px;">
+    基于 {{ salary_classifier.total_rows }} 个真实岗位训练的薪资档位分类模型（{{ salary_classifier.metrics.model_name }}）。
+    输入你的城市、学历、经验与技能，即可预测你可能的薪资区间。
+</p>
+
+<!-- 模型指标卡 -->
+<div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:24px;">
+    <div class="card" style="flex:1; min-width:150px; text-align:center;" data-no="准确率">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ "%.1f"|format(salary_classifier.metrics.accuracy * 100) }}%</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">准确率</div>
+    </div>
+    <div class="card" style="flex:1; min-width:150px; text-align:center;" data-no="F1">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ "%.2f"|format(salary_classifier.metrics.macro_f1) }}</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">Macro-F1</div>
+    </div>
+    <div class="card" style="flex:1; min-width:150px; text-align:center;" data-no="样本">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ salary_classifier.metrics.n_samples }}</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">训练样本</div>
+    </div>
+    <div class="card" style="flex:1; min-width:150px; text-align:center;" data-no="档位">
+        <div style="font-size:38px; font-weight:800; color:var(--stamp);">{{ salary_classifier.metrics.n_classes }}</div>
+        <div style="color:var(--ink-soft); font-size:13px; margin-top:4px;">薪资档位数</div>
+    </div>
+</div>
+
+<!-- 特征重要性图 + 档位分布 -->
+<div style="display:flex; gap:24px; flex-wrap:wrap;">
+    <div class="card" data-no="特征重要性" style="flex:1 1 420px; min-width:340px;">
+        <h3 style="margin-top:0; margin-bottom:14px; font-size:17px;">特征重要性</h3>
+        <div id="salary_feature_imp" style="width:100%; height:{{ [360, salary_classifier.feature_importances|length * 24 + 80]|max }}px;"></div>
+    </div>
+    <div class="card" data-no="档位分布" style="flex:1 1 340px; min-width:280px;">
+        <h3 style="margin-top:0; margin-bottom:14px; font-size:17px;">薪资档位分布</h3>
+        <div id="salary_band_dist" style="width:100%; height:360px;"></div>
+    </div>
+</div>
+
+<!-- 交互预测区 -->
+<div class="card" data-no="薪资预测" style="margin-top:24px;">
+    <h3 style="margin-top:0; margin-bottom:16px; font-size:18px;">试试预测你的薪资档位</h3>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
+        <div style="flex:1 1 160px; min-width:130px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">城市</label>
+            <select id="pred_city" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+                font-size:14px; background:var(--card); color:var(--ink);">
+                <option value="">不限</option>
+            </select>
+        </div>
+        <div style="flex:1 1 140px; min-width:120px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">学历</label>
+            <select id="pred_edu" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+                font-size:14px; background:var(--card); color:var(--ink);">
+                <option value="">不限</option>
+                <option value="高中">高中</option>
+                <option value="大专">大专</option>
+                <option value="本科">本科</option>
+                <option value="硕士">硕士</option>
+                <option value="博士">博士</option>
+            </select>
+        </div>
+        <div style="flex:1 1 140px; min-width:120px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">经验</label>
+            <select id="pred_exper" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+                font-size:14px; background:var(--card); color:var(--ink);">
+                <option value="">经验不限</option>
+                <option value="应届毕业生">应届</option>
+                <option value="1-3年">1-3年</option>
+                <option value="3-5年">3-5年</option>
+                <option value="5-10年">5-10年</option>
+                <option value="10年以上">10年以上</option>
+            </select>
+        </div>
+        <div style="flex:2 1 240px; min-width:180px;">
+            <label style="display:block; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">技能（逗号分隔）</label>
+            <input type="text" id="pred_skills" placeholder="如 Python,Django,MySQL"
+                style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+                font-size:14px; background:var(--card); color:var(--ink); box-sizing:border-box;">
+        </div>
+        <div style="flex:0 0 auto;">
+            <button id="btn_predict" onclick="predictSalaryBand()"
+                style="padding:11px 28px; background:var(--stamp); color:#fff; border:none; border-radius:8px;
+                font-size:15px; font-weight:700; cursor:pointer; transition:opacity .2s;">
+                预测薪资档位
+            </button>
+        </div>
+    </div>
+
+    <!-- 预测结果 -->
+    <div id="predict_result" style="display:none; margin-top:8px;">
+        <div style="background:linear-gradient(135deg,#F7F4EB,#FDFBF5); border-radius:12px; padding:20px 24px;
+            border:1px solid #E8E2D2;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+                <span style="font-size:14px; color:var(--ink-soft);">预测薪资档位：</span>
+                <span id="pred_band_label" style="font-size:26px; font-weight:800; color:var(--stamp);"></span>
+            </div>
+            <div id="pred_degraded" style="font-size:13px; color:#B0904A; margin-bottom:12px;"></div>
+            <div id="pred_prob_chart" style="width:100%; height:180px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---- 城市下拉初始化 ----
+(function initCitySelect(){
+    var sel = document.getElementById('pred_city');
+    if (!sel) return;
+    {% if city_vocab %}
+    var cityKeys = {{ city_vocab.keys()|list|tojson }};
+    cityKeys.forEach(function(c){
+        if (c !== '其他') {
+            var opt = document.createElement('option');
+            opt.value = c; opt.textContent = c;
+            sel.appendChild(opt);
+        }
+    });
+    {% endif %}
+})();
+
+// ---- 特征重要性图 ----
+function renderSalaryFeatureImp(){
+    var fi = {{ salary_classifier.feature_importances|tojson }};
+    if (!fi || !fi.length) return;
+    var names = fi.map(function(f){ return f.name.replace('城市_','').replace('类别_','').replace('技能_',''); });
+    var vals = fi.map(function(f){ return f.importance; });
+
+    if (window._mlCharts.salary_feature_imp) window._mlCharts.salary_feature_imp.dispose();
+    var chart = echarts.init(document.getElementById('salary_feature_imp'));
+    window._mlCharts.salary_feature_imp = chart;
+    chart.setOption({
+        tooltip: { trigger:'axis', axisPointer:{type:'shadow'} },
+        grid: { left:140, right:50, top:10, bottom:20 },
+        xAxis: { type:'value', axisLabel:{color:SOFT,fontSize:13},
+                 splitLine:{lineStyle:{color:'#EDEFE8'}} },
+        yAxis: { type:'category', data:names.reverse(),
+                 axisLabel:{color:TEXT,fontSize:13}, axisLine:{show:false}, axisTick:{show:false} },
+        series: [{
+            type:'bar', data:vals.reverse(), barWidth:'60%',
+            itemStyle:{color:STAMP,borderRadius:[0,4,4,0]},
+            label:{show:true,position:'right',color:SOFT,fontSize:12,
+                   formatter:function(p){return (p.value*100).toFixed(1)+'%';}}
+        }]
+    });
+}
+renderSalaryFeatureImp();
+
+// ---- 档位分布图 ----
+function renderSalaryBandDist(){
+    var labels = {{ salary_classifier.band_labels|tojson }};
+    var counts = {{ salary_classifier.band_counts|tojson }};
+
+    if (window._mlCharts.salary_band_dist) window._mlCharts.salary_band_dist.dispose();
+    var chart = echarts.init(document.getElementById('salary_band_dist'));
+    window._mlCharts.salary_band_dist = chart;
+    chart.setOption({
+        tooltip: { trigger:'item', formatter:'{b}: {c} 岗 ({d}%)' },
+        series: [{
+            type:'pie', radius:['45%','75%'], center:['50%','50%'],
+            data: labels.map(function(l,i){ return {name:l,value:counts[i]}; }),
+            label: {color:TEXT,fontSize:13,formatter:'{b}\n{d}%'},
+            emphasis: {itemStyle:{shadowBlur:10,shadowOffsetX:0,shadowColor:'rgba(0,0,0,0.2)'}}
+        }],
+        color: COLORS
+    });
+}
+renderSalaryBandDist();
+
+// ---- 薪资预测按钮处理 ----
+function predictSalaryBand(){
+    var city = document.getElementById('pred_city').value || '';
+    var edu = document.getElementById('pred_edu').value || '';
+    var exper = document.getElementById('pred_exper').value || '';
+    var skills = document.getElementById('pred_skills').value.trim();
+
+    var btn = document.getElementById('btn_predict');
+    var origText = btn.textContent;
+    btn.textContent = '预测中…';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    fetch('/ml/salary-predict', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},
+        body: JSON.stringify({city:city, edu:edu, exper:exper, skills:skills})
+    })
+    .then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+    })
+    .then(function(data){
+        btn.textContent = origText;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+
+        if (data.error) {
+            alert('预测失败: ' + data.error);
+            return;
+        }
+
+        // 显示结果区域
+        var resultDiv = document.getElementById('predict_result');
+        resultDiv.style.display = 'block';
+
+        // 预测档位
+        document.getElementById('pred_band_label').textContent = data.predicted_band;
+
+        // 降级提示
+        var degraded = data.degraded || {};
+        var degTips = [];
+        if (degraded.city) degTips.push('城市 "'+data.input.city+'" 不在训练数据中，已归为「其他」');
+        if (degraded.skills_not_found && degraded.skills_not_found.length) {
+            degTips.push('技能 "'+degraded.skills_not_found.join(',')+'" 未在训练词表中');
+        }
+        document.getElementById('pred_degraded').innerHTML = degTips.length
+            ? '⚠ ' + degTips.join('；') : '';
+
+        // 概率分布图
+        var probs = data.probabilities || [];
+        if (window._mlCharts.pred_prob) window._mlCharts.pred_prob.dispose();
+        var chart = echarts.init(document.getElementById('pred_prob_chart'));
+        window._mlCharts.pred_prob = chart;
+        chart.setOption({
+            tooltip: { trigger:'axis', axisPointer:{type:'shadow'},
+                       formatter: function(p){ return p[0].name + ': <b>'+(p[0].value*100).toFixed(1)+'%</b>'; }},
+            grid: { left:100, right:40, top:10, bottom:24 },
+            xAxis: { type:'value', max:1, axisLabel:{color:SOFT,fontSize:13,
+                     formatter:function(v){return (v*100).toFixed(0)+'%';}},
+                     splitLine:{lineStyle:{color:'#EDEFE8'}} },
+            yAxis: { type:'category', data:probs.map(function(p){return p.band;}).reverse(),
+                     axisLabel:{color:TEXT,fontSize:13}, axisLine:{show:false}, axisTick:{show:false} },
+            series: [{
+                type:'bar', data:probs.map(function(p){return p.prob;}).reverse(),
+                barWidth:'55%',
+                itemStyle:{color:STAMP,borderRadius:[0,4,4,0]},
+                label:{show:true,position:'right',color:SOFT,fontSize:12,
+                       formatter:function(p){return (p.value*100).toFixed(1)+'%';}}
+            }]
+        });
+
+        // 滚动到结果区
+        resultDiv.scrollIntoView({behavior:'smooth',block:'center'});
+    })
+    .catch(function(err){
+        btn.textContent = origText;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        alert('预测请求失败: ' + err.message);
+    });
+}
+</script>
+
+{% elif salary_classifier and salary_classifier.error %}
+<div class="card" data-no="薪资预测" id="ml-salary-predict" style="margin-bottom:20px;">
+    <h3 style="margin-top:0; display:flex; align-items:center;">
+        薪资预测模型
+        <span class="ai-badge" onclick="showAI(event,'salary_predict')" title="AI 解读">AI</span>
+    </h3>
+    <p style="color:var(--ink-soft); margin:0;">薪资预测模型：{{ salary_classifier.error }}</p>
+</div>
+{% endif %}
+
+{% endif %}
+
+</div><!-- .ml-main -->
+</div><!-- .ml-layout -->
+
+<!-- AI 分析弹窗面板 -->
+<div id="ai_overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+     background:rgba(28,38,32,.45); z-index:1000; backdrop-filter:blur(4px);
+     align-items:center; justify-content:center;">
+    <div id="ai_panel" style="background:#FBFAF6; border:1px solid #D7D9CB; border-radius:20px;
+         max-width:600px; width:90%; max-height:80vh; overflow-y:auto; padding:32px;
+         box-shadow:0 20px 60px rgba(0,0,0,.15); position:relative;
+         animation: ai-ml-in .3s ease-out;">
+        <style>
+        @keyframes ai-ml-in { from { opacity:0; transform: scale(.9); } to { opacity:1; transform: scale(1); } }
+        @keyframes ai-ml-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #ai_content b { color: #2E6E5E; font-weight: 700; }
+        #ai_content ul, #ai_content ol { padding-left: 20px; margin: 8px 0; }
+        #ai_content li { margin: 4px 0; }
+        </style>
+        <button onclick="closeAI()" style="position:absolute; top:16px; right:16px; width:36px;
+            height:36px; border-radius:50%; border:none; background:#EDEFE8; color:#5E665A;
+            font-size:18px; cursor:pointer; display:flex; align-items:center;
+            justify-content:center; transition:.2s;">&#10005;</button>
+        <h3 id="ai_title" style="margin:0 0 16px; font-size:20px; font-weight:700;
+            color:#1C2620; font-family:'Noto Serif SC',serif;">AI 深度解读</h3>
+        <div id="ai_content" style="font-size:15px; line-height:1.8; color:#5E665A;"></div>
+    </div>
+</div>
+
+<script>
+// ---------- 主题切换：免刷新重绘所有图表 ----------
+window.addEventListener('theme:changed', function() {
+    recalcMlColors();
+    if (typeof renderClusterOverview === 'function') renderClusterOverview();
+    if (typeof renderHeatmap === 'function') renderHeatmap();
+    if (typeof renderSimilarity === 'function') renderSimilarity();
+    if (typeof renderSalaryCurve === 'function') renderSalaryCurve();
+    if (typeof renderEduOverall === 'function') renderEduOverall();
+    if (typeof renderSalaryFeatureImp === 'function') renderSalaryFeatureImp();
+    if (typeof renderSalaryBandDist === 'function') renderSalaryBandDist();
+});
+
+// ====== /ml 页面 AI 分析（预取 + 缓读 + 实时数据）======
+var AI_CACHE_PREFIX = '_ml_ai_cache_';
+var AI_LAST_KEY = '_ml_ai_last_section';
+var AI_LAST_TEXT = '_ml_ai_last_text';
+var AI_CACHE_TTL = 120000;  // 2 分钟（匹配服务端缓存 TTL，保证实时性）
+var AI_SECTIONS = ['cluster', 'heatmap', 'similarity', 'salary_curve', 'edu_premium', 'salary_predict'];
+
+var TITLES = {
+    cluster: '方向聚类 · AI 深度解读',
+    heatmap: '技能热力图 · AI 深度解读',
+    similarity: '相似度网络 · AI 深度解读',
+    salary_curve: '薪资成长曲线 · AI 深度解读',
+    edu_premium: '学历溢价 · AI 深度解读',
+    salary_predict: '薪资预测模型 · AI 深度解读'
+};
+
+function _aiCacheGet(section) {
+    try {
+        var raw = sessionStorage.getItem(AI_CACHE_PREFIX + section);
+        if (!raw) return null;
+        var entry = JSON.parse(raw);
+        if (Date.now() - entry.ts > AI_CACHE_TTL) {
+            sessionStorage.removeItem(AI_CACHE_PREFIX + section);
+            return null;
+        }
+        return entry.text;
+    } catch(e) { return null; }
+}
+
+function _aiCacheSet(section, text) {
+    try {
+        sessionStorage.setItem(AI_CACHE_PREFIX + section,
+            JSON.stringify({ ts: Date.now(), text: text }));
+    } catch(e) { /* quota exceeded */ }
+}
+
+function formatAIResponse(text){
+    var html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/\n\n+/g, '</p><p>')
+        .replace(/\n/g, '<br/>');
+    return '<p>' + html + '</p>';
+}
+
+function showAI(event, section){
+    event.preventDefault();
+    event.stopPropagation();
+    var overlay = document.getElementById('ai_overlay');
+    var title = document.getElementById('ai_title');
+    var content = document.getElementById('ai_content');
+    title.textContent = TITLES[section] || 'AI 深度解读';
+    overlay.style.display = 'flex';
+
+    try { sessionStorage.setItem(AI_LAST_KEY, section); } catch(e) {}
+
+    content.innerHTML = '<p style="text-align:center;padding:24px;color:#9C7F3F;">'
+        + '<span style="display:inline-block;animation:ai-ml-spin .8s linear infinite;font-size:24px;">&#9203;</span>'
+        + '<br/>AI 正在分析数据…</p>';
+
+    // 优先读预取缓存 → 假装思考 2 秒后呈现
+    var cached = _aiCacheGet(section);
+    if (cached) {
+        var cachedText = cached;
+        setTimeout(function(){
+            content.innerHTML = formatAIResponse(cachedText);
+        }, 2000);
+        try { sessionStorage.setItem(AI_LAST_TEXT, cached); } catch(e) {}
+        return;
+    }
+
+    // 兜底：实时请求（正常不会走到这里，预取已覆盖）
+    var fetchStart = Date.now();
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    fetch('/ml/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ section: section, fresh: true })
+    })
+    .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+    })
+    .then(function(text){
+        if(text.indexOf('{"error"') === 0){
+            try { var err = JSON.parse(text); throw new Error(err.error); } catch(e){ throw e; }
+        }
+        _aiCacheSet(section, text);
+        try { sessionStorage.setItem(AI_LAST_TEXT, text); } catch(e) {}
+        var elapsed = Date.now() - fetchStart;
+        var minWait = Math.max(0, 2000 - elapsed);
+        setTimeout(function(){
+            content.innerHTML = formatAIResponse(text);
+        }, minWait);
+    })
+    .catch(function(err){
+        console.warn('AI分析API失败:', err.message);
+        var elapsed = Date.now() - fetchStart;
+        var minWait = Math.max(0, 2000 - elapsed);
+        setTimeout(function(){
+            content.innerHTML = '<p style="color:#8C3B32;">AI 分析暂时不可用，请稍后重试。</p>'
+                + '<p style="color:#6F6D67;">' + err.message + '</p>';
+        }, minWait);
+    });
+}
+
+function closeAI(){
+    document.getElementById('ai_overlay').style.display = 'none';
+    try { sessionStorage.removeItem(AI_LAST_KEY); sessionStorage.removeItem(AI_LAST_TEXT); } catch(e) {}
+}
+
+document.getElementById('ai_overlay').addEventListener('click', function(e){
+    if(e.target === this) closeAI();
+});
+
+// ---------- AI 预取：页面加载后清旧缓存 → 后台并发请求全部 5 个 section ----------
+function fetchAISection(section){
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+    return fetch('/ml/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ section: section, fresh: true })
+    }).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+    }).then(function(text){
+        if(text.indexOf('{"error"') !== 0){
+            _aiCacheSet(section, text);
+        }
+        return text;
+    });
+}
+
+(function prefetchAllAI(){
+    // 先清掉旧缓存，确保本次解读基于实时数据
+    AI_SECTIONS.forEach(function(s){
+        try { sessionStorage.removeItem(AI_CACHE_PREFIX + s); } catch(e) {}
+    });
+    // 并发预取全部 5 个 section
+    AI_SECTIONS.forEach(function(s){
+        fetchAISection(s).catch(function(e){ console.warn('AI预取失败', s, e); });
+    });
+})();
+
+// ---------- 切页面回来后自动恢复上次 AI 分析弹窗 ----------
+(function restoreLastAI(){
+    var lastSection = null;
+    var lastText = null;
+    try {
+        lastSection = sessionStorage.getItem(AI_LAST_KEY);
+        lastText = sessionStorage.getItem(AI_LAST_TEXT);
+        sessionStorage.removeItem(AI_LAST_KEY);
+        sessionStorage.removeItem(AI_LAST_TEXT);
+    } catch(e) {}
+    if (lastSection && lastText) {
+        setTimeout(function(){
+            var overlay = document.getElementById('ai_overlay');
+            var title = document.getElementById('ai_title');
+            var content = document.getElementById('ai_content');
+            if (!overlay || !title || !content) return;
+            title.textContent = TITLES[lastSection] || 'AI 深度解读';
+            content.innerHTML = formatAIResponse(lastText);
+            overlay.style.display = 'flex';
+        }, 500);
+    }
+})();
+
+// ---------- 左侧导航：平滑滚动 + 滚动监听 ----------
+(function initSidebarNav(){
+    var navLinks = document.querySelectorAll('.ml-sidebar a[data-target]');
+    var sections = {};
+    navLinks.forEach(function(a){
+        var targetId = a.getAttribute('data-target');
+        var el = document.getElementById(targetId);
+        if (el) sections[targetId] = el;
+    });
+
+    // 点击平滑滚动
+    navLinks.forEach(function(a){
+        a.addEventListener('click', function(e){
+            e.preventDefault();
+            var targetId = this.getAttribute('data-target');
+            var targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // 滚动监听 — 高亮当前可见 section
+    var ticking = false;
+    function onScroll(){
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function(){
+            var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            var windowHeight = window.innerHeight;
+            var activeId = null;
+
+            var sectionIds = Object.keys(sections);
+            for (var i = sectionIds.length - 1; i >= 0; i--) {
+                var id = sectionIds[i];
+                var el = sections[id];
+                var rect = el.getBoundingClientRect();
+                if (rect.top <= windowHeight * 0.55) {
+                    activeId = id;
+                    break;
+                }
+            }
+            if (!activeId && scrollTop < 200 && sectionIds.length > 0) {
+                activeId = sectionIds[0];
+            }
+
+            navLinks.forEach(function(a){
+                if (a.getAttribute('data-target') === activeId) {
+                    a.classList.add('active');
+                } else {
+                    a.classList.remove('active');
+                }
+            });
+
+            ticking = false;
+        });
+    }
+
+    if (navLinks.length > 0) navLinks[0].classList.add('active');
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    setTimeout(onScroll, 800);
+})();
+</script>
+
+{% endblock %}

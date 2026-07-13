@@ -1,0 +1,463 @@
+/* ============================================================
+   theme-dark.css  —  第二前端风格（深色 SaaS）覆盖层
+   作用：当 <html class="theme-dark"> 时，把第一风格（米色公文风）
+         覆盖为 design.md 的深色 SaaS 风。
+   原则：原 HTML 结构 / 类名 / DOM 顺序 100% 不动，仅通过
+        html.theme-dark 作用域下的同名类 + var() 重映射生效。
+   浅色（默认）下本文件 0 影响。
+   ============================================================ */
+
+/* ---------- 1. Token 变量（覆盖原 :root，仅在 theme-dark 下） ---------- */
+html.theme-dark{
+  --bg-page: linear-gradient(135deg,#1C1F3B 0%,#16213E 50%,#1A1040 100%);
+  --bg-card: linear-gradient(145deg,rgba(30,35,70,0.85) 0%,rgba(22,28,62,0.95) 100%);
+  --text-primary:#FFFFFF; --text-secondary:rgba(255,255,255,0.55); --text-muted:rgba(255,255,255,0.55);
+  --cyan:#5DE0E6; --pink:#FF6EC7; --gold:#FFB84D; --lavender:#B48CFF; --coral:#FF7B8A;
+  --border-card:rgba(100,120,200,0.15);
+  --radius-sm:12px; --radius-md:16px; --radius-lg:20px; --radius-xl:28px; --radius-full:9999px;
+
+  /* 强调色（默认 cyan，由 theme-toggle.js 切换 --accent-from/--accent-to） */
+  --accent-from:#5DE0E6; --accent-to:#B48CFF;
+
+  /* 把原米色 token 重映射到深色（内联 var(--*) 自动跟随） */
+  --paper:#161A33;            /* 深底实色（作纯色处用） */
+  --card:#1E2346;            /* 备用实色卡底 */
+  --ink:#FFFFFF;            /* 主文字 */
+  --ink-soft:rgba(255,255,255,0.55);
+  --stamp:#B48CFF;          /* 印章/强调 → 紫 */
+  --brass:#8B9FFF;
+  --line:rgba(100,120,200,0.18);
+  --teal:#5DE0E6;            /* 交互蓝 → 青 */
+  --teal-soft:rgba(93,224,230,0.10);
+  --accent:#5DE0E6;
+  --accent-light:rgba(93,224,230,0.12);
+  --gold:#FFB84D;
+
+  /* advice 暖色体系 → 重映射为深色 token */
+  --warm-primary:#5DE0E6;
+  --warm-primary-dark:#B48CFF;
+  --warm-primary-light:rgba(93,224,230,0.10);
+  --warm-accent:#B48CFF;
+  --warm-bg:#161A33;
+  --warm-surface:rgba(30,35,70,0.85);
+  --warm-ink:#FFFFFF;
+  --warm-ink-soft:rgba(255,255,255,0.55);
+  --warm-line:rgba(100,120,200,0.18);
+  --warm-radius:20px;
+  --warm-shadow:0 8px 32px rgba(0,0,0,0.25);
+}
+
+/* ---------- 2. 页面基底 + 顶部径向辉光 ---------- */
+html.theme-dark body{
+  background:var(--bg-page) !important;
+  background-attachment:fixed !important;
+  color:var(--text-primary) !important;
+  font-family:'PingFang SC','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;
+  position:relative;
+}
+html.theme-dark body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:radial-gradient(ellipse at 30% 0%, rgba(78,84,180,0.15) 0%, transparent 60%);
+}
+
+/* 标题渐变文字（h1/h2 等标题族） */
+html.theme-dark h1, html.theme-dark h2{
+  font-family:'PingFang SC','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;
+  color:#fff !important;
+  background:linear-gradient(90deg,#FFFFFF 30%,#8B9FFF 60%,#FF6EC7 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+html.theme-dark h3, html.theme-dark h4, html.theme-dark h5{
+  font-family:'PingFang SC','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+  background:none !important;
+}
+/* 但保持容器内普通文字可读（非标题） */
+html.theme-dark p, html.theme-dark span, html.theme-dark div, html.theme-dark td, html.theme-dark th, html.theme-dark li, html.theme-dark label, html.theme-dark button, html.theme-dark a, html.theme-dark .eyebrow, html.theme-dark .mono{ color:inherit; }
+
+/* ---------- 3. 导航栏（毛玻璃深底） ---------- */
+html.theme-dark .navbar{
+  background:rgba(22,28,62,0.82) !important;
+  border-bottom:1px solid var(--border-card) !important;
+}
+html.theme-dark .navbar-brand{ color:#fff !important; }
+html.theme-dark .navbar-brand::before{
+  background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important;
+  color:#0b0e1f !important;
+}
+html.theme-dark .brand-tagline{ color:var(--text-secondary) !important; }
+html.theme-dark ul.nav.navbar-nav li a{ color:var(--text-secondary) !important; }
+html.theme-dark ul.nav.navbar-nav li a:hover{ color:#fff !important; background:rgba(93,224,230,0.10) !important; }
+html.theme-dark ul.nav.navbar-nav li a.nav-active{
+  color:var(--accent-from) !important; font-weight:700 !important;
+  background:rgba(93,224,230,0.12) !important;
+}
+html.theme-dark .nav-badge{ background:var(--accent-from) !important; color:#0b0e1f !important; }
+
+/* ---------- 4. 卡片（bg-card + 4px 左侧渐变光条 ::after） ---------- */
+html.theme-dark .card, html.theme-dark .well{
+  background:var(--bg-card) !important;
+  border:1px solid var(--border-card) !important;
+  border-radius:var(--radius-lg) !important;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+  color:var(--text-primary) !important;
+  transition:transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s cubic-bezier(.4,0,.2,1);
+}
+/* 左光条：用 ::after，避开原 .card[data-no]::before 编号标签 */
+html.theme-dark .card::after, html.theme-dark .well::after{
+  content:""; position:absolute; left:0; top:20%; bottom:20%;
+  width:4px; border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,var(--accent-from) 0%,var(--accent-to) 100%);
+  box-shadow:0 0 12px rgba(93,224,230,0.25);
+}
+html.theme-dark .card[data-no]::before{
+  background:var(--paper) !important; color:var(--brass) !important;
+}
+html.theme-dark .card:hover, html.theme-dark .well:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 40px rgba(93,224,230,0.12), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+
+/* ---------- 5. 按钮 ---------- */
+html.theme-dark .btn{
+  background:rgba(30,35,70,0.85) !important;
+  color:#fff !important; border:1px solid var(--border-card) !important;
+  border-radius:var(--radius-full) !important;
+}
+html.theme-dark .btn:hover{ background:rgba(93,224,230,0.16) !important; color:#fff !important; }
+html.theme-dark .btn-primary, html.theme-dark .btn-info{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; border:none !important; }
+html.theme-dark .btn-primary:hover, html.theme-dark .btn-info:hover{ filter:brightness(1.08); box-shadow:0 8px 40px rgba(93,224,230,0.2) !important; }
+html.theme-dark .btn-outline{ background:transparent !important; border:1.5px solid var(--border-card) !important; color:var(--text-primary) !important; }
+html.theme-dark .btn-outline:hover{ background:rgba(93,224,230,0.12) !important; }
+
+/* 收藏药丸（青描边） */
+html.theme-dark .interest-btn{ border:1.5px solid var(--cyan) !important; color:var(--cyan) !important; border-radius:var(--radius-full) !important; }
+html.theme-dark .interest-btn:hover{ background:var(--cyan) !important; color:#0b0e1f !important; }
+html.theme-dark .interest-btn.interested{ background:var(--cyan) !important; color:#0b0e1f !important; border-color:var(--cyan) !important; }
+
+/* ---------- 6. 表单 ---------- */
+html.theme-dark .form-control{
+  background:rgba(15,18,40,0.6) !important;
+  border:1px solid var(--border-card) !important; color:#fff !important;
+  border-radius:var(--radius-sm) !important;
+}
+html.theme-dark .form-control:focus{ border-color:var(--cyan) !important; box-shadow:0 0 0 3px rgba(93,224,230,0.18) !important; }
+html.theme-dark .form-group label{ color:var(--text-secondary) !important; }
+
+/* ---------- 7. 表格 ---------- */
+html.theme-dark .table th{ color:var(--text-secondary) !important; border-bottom:2px solid rgba(255,255,255,0.25) !important; }
+html.theme-dark .table td{ color:var(--text-primary) !important; border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .table-bordered td, html.theme-dark .table-bordered th{ border:1px solid var(--border-card) !important; }
+html.theme-dark .table-striped tr:nth-child(even) td{ background:rgba(255,255,255,0.03) !important; }
+html.theme-dark .table tbody tr{ transition:background-color .2s ease, transform .2s ease; }
+
+/* 词云高频热词侧边栏 TOP20 表格 */
+html.theme-dark .wc-sidebar{ background:rgba(15,18,40,0.6) !important; }
+html.theme-dark .wc-sidebar h4{ color:var(--text-primary) !important; }
+html.theme-dark .wc-sidebar th{ color:var(--text-secondary) !important; border-bottom:2px solid rgba(255,255,255,0.25) !important; }
+html.theme-dark .wc-sidebar td{ color:var(--text-primary) !important; border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .wc-sidebar tbody tr:first-child td{ color:var(--coral) !important; font-weight:700; }
+
+
+/* job_detail / cluster 行交互（原用 #eef2ff/#2563eb 字面量 → token 青 + 上浮） */
+html.theme-dark .data-row:hover{ background-color:rgba(93,224,230,0.08) !important; box-shadow:0 6px 20px rgba(93,224,230,0.18) !important; }
+html.theme-dark .data-row:hover td{ color:var(--cyan) !important; }
+html.theme-dark .data-row:hover .job-link{ color:var(--cyan) !important; }
+html.theme-dark .job-link{ color:var(--text-primary) !important; }
+html.theme-dark .job-link:hover{ color:var(--cyan) !important; }
+
+/* ---------- 8. 提示 / 徽章 ---------- */
+html.theme-dark .alert{ background:rgba(30,35,70,0.85) !important; color:var(--text-primary) !important; border-left:4px solid var(--cyan) !important; }
+html.theme-dark .alert-danger{ border-left-color:var(--coral) !important; }
+html.theme-dark .alert-info{ border-left-color:var(--cyan) !important; }
+html.theme-dark .eyebrow{ color:var(--text-secondary) !important; }
+html.theme-dark .mono{ font-family:'JetBrains Mono',monospace; color:var(--cyan) !important; }
+html.theme-dark .restored-badge{ background:rgba(93,224,230,0.10) !important; color:var(--cyan) !important; border-radius:var(--radius-sm) !important; }
+html.theme-dark .restored-badge a{ color:var(--coral) !important; border-bottom:1px dashed var(--coral) !important; }
+
+/* ============================================================
+   9. 各页自有类覆盖（同名类 → Token）
+   ============================================================ */
+
+/* —— 首页 input.html —— */
+html.theme-dark .home-wrap{ max-width:780px; margin:0 auto; }
+html.theme-dark .home-hero h1{ font-size:40px !important; letter-spacing:-0.5px !important; line-height:1.2 !important; font-weight:700 !important; }
+html.theme-dark .home-hero .subtitle{ color:var(--text-secondary) !important; }
+html.theme-dark .home-card{ padding:32px 36px 28px !important; }
+html.theme-dark .city-row{ background:rgba(15,18,40,0.6) !important; border:1px solid var(--border-card) !important; border-radius:var(--radius-sm) !important; }
+html.theme-dark .city-row select{ background:rgba(30,35,70,0.9) !important; color:#fff !important; border:1px solid var(--border-card) !important; border-radius:10px !important; }
+html.theme-dark .add-city-btn{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; border-radius:var(--radius-full) !important; }
+html.theme-dark .tag-chip{ background:rgba(93,224,230,0.10) !important; color:var(--cyan) !important; border-radius:var(--radius-full) !important; box-shadow:0 1px 3px rgba(0,0,0,.2) !important; }
+html.theme-dark .tag-chip .tag-remove{ color:var(--text-secondary) !important; }
+html.theme-dark .tag-chip .tag-remove:hover{ color:var(--coral) !important; }
+html.theme-dark .home-feature-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:34px; }
+html.theme-dark .home-feature-card{
+  background:var(--bg-card) !important; border:1px solid var(--border-card) !important;
+  border-radius:var(--radius-md) !important; padding:26px 22px 22px !important;
+  color:var(--text-primary) !important;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+  position:relative; overflow:hidden;
+}
+html.theme-dark .home-feature-card::before{
+  content:""; position:absolute; left:0; top:20%; bottom:20%; width:4px; border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,var(--accent-from),var(--accent-to));
+}
+html.theme-dark .home-feature-card:hover{ transform:translateY(-5px) !important; box-shadow:0 8px 40px rgba(93,224,230,0.12) !important; border-color:var(--accent-from) !important; }
+html.theme-dark .home-feature-card .fc-title{ color:#fff !important; }
+html.theme-dark .home-feature-card .fc-desc{ color:var(--text-secondary) !important; }
+html.theme-dark .home-feature-card .fc-arrow{ color:var(--accent-from) !important; }
+
+/* —— 图表页 h.html —— */
+html.theme-dark .chart-layout{ display:flex; gap:24px; align-items:flex-start; }
+html.theme-dark .chart-sidebar{
+  width:240px; flex-shrink:0; background:var(--bg-card) !important;
+  border:1px solid var(--border-card) !important; border-radius:var(--radius-md) !important;
+  position:sticky; top:88px; box-shadow:0 8px 32px rgba(0,0,0,0.25) !important; overflow:hidden;
+}
+html.theme-dark .chart-sidebar li{ border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .chart-sidebar li a{ color:var(--text-secondary) !important; border-left:4px solid transparent !important; }
+html.theme-dark .chart-sidebar li a:hover{ color:#fff !important; background:rgba(93,224,230,0.10) !important; border-left-color:var(--cyan) !important; }
+html.theme-dark .chart-sidebar li a.active{ color:#fff !important; font-weight:700 !important; background:rgba(93,224,230,0.12) !important; border-left-color:var(--stamp) !important; }
+html.theme-dark .ai-badge{
+  background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important;
+  color:#0b0e1f !important;
+  -webkit-text-fill-color:#0b0e1f !important;   /* 重置 h2 继承来的 transparent */
+  box-shadow:0 0 12px rgba(93,224,230,0.4), 0 0 24px rgba(180,140,255,0.2) !important;
+  border:1.5px solid rgba(255,255,255,0.25) !important;
+}
+html.theme-dark .ai-badge:hover{ box-shadow:0 4px 20px rgba(93,224,230,0.5) !important; transform:scale(1.18) !important; }
+
+/* —— 岗位详情 job_detail.html —— */
+html.theme-dark .btn-detail{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; border:none !important; border-radius:var(--radius-full) !important; }
+html.theme-dark .btn-detail:hover{ filter:brightness(1.08); }
+
+/* —— ml.html —— */
+html.theme-dark .ml-layout{ display:flex; gap:24px; align-items:flex-start; }
+html.theme-dark .ml-sidebar{
+  width:220px; flex-shrink:0; background:var(--bg-card) !important;
+  border:1px solid var(--border-card) !important; border-radius:var(--radius-md) !important;
+  position:sticky; top:88px; box-shadow:0 8px 32px rgba(0,0,0,0.25) !important; overflow:hidden;
+}
+html.theme-dark .ml-sidebar li{ border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .ml-sidebar li a{ color:var(--text-secondary) !important; border-left:4px solid transparent !important; }
+html.theme-dark .ml-sidebar li a:hover{ color:#fff !important; background:rgba(93,224,230,0.10) !important; border-left-color:var(--cyan) !important; }
+html.theme-dark .ml-sidebar li a.active{ color:#fff !important; font-weight:700 !important; background:rgba(93,224,230,0.12) !important; border-left-color:var(--stamp) !important; }
+html.theme-dark .dir-card:hover{ transform:translateY(-8px) scale(1.03) !important; box-shadow:0 16px 34px rgba(93,224,230,0.18) !important; }
+
+/* ml.html 统计大数字：淡紫 stamp 在深蓝底对比度不足 → 纯白+发光 */
+html.theme-dark #ml-overview .card div[style*="color:var(--stamp)"] {
+  color: #fff !important;
+  text-shadow: 0 0 16px rgba(93, 224, 230, 0.35);
+}
+html.theme-dark .ml-overview-num{
+  font-size:42px !important; font-weight:800 !important;
+  background:linear-gradient(90deg,var(--cyan),var(--lavender));
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+html.theme-dark .ml-sub{ color:var(--text-secondary) !important; }
+
+/* —— 收藏页 interested.html —— */
+html.theme-dark .fav-row:hover{ background-color:rgba(93,224,230,0.08) !important; }
+html.theme-dark .salary-mono{ color:var(--cyan) !important; }
+html.theme-dark .mini-btn{ border:1.5px solid var(--cyan) !important; color:var(--cyan) !important; border-radius:var(--radius-full) !important; }
+html.theme-dark .mini-btn:hover{ background:var(--cyan) !important; color:#0b0e1f !important; }
+html.theme-dark .mini-btn.interested{ background:var(--cyan) !important; color:#0b0e1f !important; border-color:var(--cyan) !important; }
+html.theme-dark .empty-state{ color:var(--text-secondary) !important; }
+html.theme-dark .toolbar .mono{ color:var(--text-secondary) !important; }
+
+/* —— advice.html（暖色体系已重映射 --warm-*，下列补强） —— */
+html.theme-dark .hero{
+  background:linear-gradient(135deg,rgba(20,25,50,0.95),rgba(30,35,70,0.9)) !important;
+  border:1px solid var(--border-card) !important; border-radius:var(--radius-lg) !important;
+  color:var(--text-primary) !important;
+}
+/* Hero 所有子元素强制浅色文字，防止内联暖色变量残留 */
+html.theme-dark .hero,
+html.theme-dark .hero * { color: rgba(255,255,255,0.88) !important; }
+html.theme-dark .hero-badge{
+  background:rgba(93,224,230,0.15) !important; color:var(--cyan) !important;
+  border:1px solid rgba(93,224,230,0.3) !important;
+}
+/* h2 用纯白不用 transparent fill-color，避免某些浏览器渲染异常 */
+html.theme-dark .hero h2{ color:#fff !important; background:none !important; -webkit-text-fill-color:#fff !important; }
+html.theme-dark .hero p{ color:rgba(255,255,255,0.7) !important; }
+html.theme-dark .hero::after{ display:none !important; }
+html.theme-dark .pill-bar{ background:rgba(30,35,70,0.85) !important; border:1px solid var(--border-card) !important; border-radius:var(--radius-full) !important; box-shadow:none !important; }
+html.theme-dark .pill-btn{ color:var(--text-secondary) !important; }
+html.theme-dark .pill-btn:hover{ color:#fff !important; background:rgba(93,224,230,0.10) !important; }
+html.theme-dark .pill-btn.active{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; }
+html.theme-dark .warm-card{
+  background:var(--bg-card) !important; border:1px solid var(--border-card) !important;
+  border-radius:var(--radius-lg) !important; box-shadow:0 8px 32px rgba(0,0,0,0.25) !important; color:var(--text-primary) !important;
+}
+html.theme-dark .warm-card:hover{ box-shadow:0 8px 40px rgba(93,224,230,0.12) !important; }
+html.theme-dark .warm-card-header .warm-card-title{ color:#fff !important; }
+html.theme-dark .warm-card-icon{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; border-radius:var(--radius-sm) !important; }
+html.theme-dark .warm-form-group label{ color:var(--text-secondary) !important; }
+html.theme-dark .warm-input, html.theme-dark .warm-select{ background:rgba(15,18,40,0.6) !important; border:1.5px solid var(--border-card) !important; color:#fff !important; border-radius:var(--radius-sm) !important; }
+html.theme-dark .warm-input:focus, html.theme-dark .warm-select:focus{ border-color:var(--cyan) !important; box-shadow:0 0 0 3px rgba(93,224,230,0.18) !important; }
+html.theme-dark .warm-btn{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; border-radius:var(--radius-full) !important; box-shadow:none !important; }
+html.theme-dark .warm-btn:hover{ filter:brightness(1.08); box-shadow:0 8px 40px rgba(93,224,230,0.2) !important; }
+html.theme-dark .compare-grid, html.theme-dark .compare-grid-3{ display:grid; gap:20px; }
+html.theme-dark .compare-grid{ grid-template-columns:1fr 1fr; }
+html.theme-dark .compare-grid-3{ grid-template-columns:repeat(3,1fr); }
+html.theme-dark .compare-card{
+  background:var(--bg-card) !important; border:1.5px solid var(--border-card) !important;
+  border-radius:var(--radius-lg) !important; box-shadow:0 8px 32px rgba(0,0,0,0.25) !important; color:var(--text-primary) !important;
+  position:relative; overflow:hidden;
+}
+html.theme-dark .compare-card .card-badge{ color:var(--cyan) !important; }
+html.theme-dark .compare-card .card-value{ color:#fff !important; }
+html.theme-dark .compare-stat{ border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .compare-stat .stat-label{ color:var(--text-secondary) !important; }
+html.theme-dark .compare-stat .stat-value{ color:var(--text-primary) !important; }
+html.theme-dark .answer-card{ background:linear-gradient(135deg,rgba(93,224,230,0.08),rgba(180,140,255,0.05)) !important; border:1.5px solid rgba(93,224,230,0.3) !important; border-radius:var(--radius-lg) !important; color:var(--text-primary) !important; }
+html.theme-dark .answer-card strong, html.theme-dark .warm-card strong{ color:var(--cyan) !important; }
+html.theme-dark .answer-card code, html.theme-dark .warm-card code{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; }
+html.theme-dark .md-h1, html.theme-dark .md-h2, html.theme-dark .md-h3{ color:#fff !important; }
+html.theme-dark .md-h2{ border-left:4px solid var(--cyan) !important; }
+html.theme-dark .md-ul li, html.theme-dark .md-ol li{ color:var(--text-primary) !important; }
+html.theme-dark .md-p{ color:var(--text-primary) !important; }
+html.theme-dark .skill-tag{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; border-radius:8px !important; }
+html.theme-dark .warm-alert{ background:rgba(255,123,138,0.10) !important; border:1.5px solid rgba(255,123,138,0.4) !important; color:#FFB4C0 !important; border-radius:var(--radius-md) !important; }
+html.theme-dark .warm-alert-success{ background:rgba(93,224,230,0.10) !important; border-color:rgba(93,224,230,0.4) !important; color:var(--cyan) !important; }
+html.theme-dark .warm-banner{ background:linear-gradient(135deg,rgba(93,224,230,0.10),rgba(180,140,255,0.06)) !important; border:1.5px solid rgba(93,224,230,0.4) !important; color:var(--text-primary) !important; border-radius:var(--radius-md) !important; }
+html.theme-dark .warm-banner a{ color:var(--cyan) !important; }
+html.theme-dark .divider-text::before, html.theme-dark .divider-text::after{ background:var(--border-card) !important; }
+html.theme-dark .divider-text span{ color:var(--text-secondary) !important; }
+html.theme-dark .trace-item{ border-bottom:1px solid var(--border-card) !important; }
+html.theme-dark .trace-step{ color:var(--cyan) !important; }
+html.theme-dark .trace-content{ color:var(--text-primary) !important; }
+html.theme-dark .trace-tool{ color:var(--cyan) !important; }
+html.theme-dark .trace-obs{ color:var(--text-secondary) !important; }
+html.theme-dark .loading-overlay{ background:rgba(15,18,40,0.85) !important; }
+html.theme-dark .loading-spinner{ border:3.5px solid var(--border-card); border-top-color:var(--cyan); }
+html.theme-dark .loading-text{ color:var(--text-secondary) !important; }
+
+/* restored-badge（已恢复上次对话/对比结果）深色覆盖 */
+html.theme-dark .restored-badge{
+  background:rgba(93,224,230,0.08) !important;
+  border:1px solid rgba(93,224,230,0.25) !important;
+  color:var(--cyan) !important;
+  border-radius:var(--radius-md) !important;
+  padding:8px 16px !important;
+  font-size:13px !important;
+}
+html.theme-dark .restored-badge a{ color:var(--cyan) !important; text-decoration:underline !important; }
+
+/* advice 页面内联 style="color:var(--warm-ink-soft)" 等暖色文字 → 通配覆盖为浅色 */
+html.theme-dark .tab-panel,
+html.theme-dark .tab-panel *{ color:var(--text-primary) !important; }
+/* 但 a / code / badge 等特殊元素保留各自规则 */
+html.theme-dark .tab-panel a{ color:var(--cyan) !important; }
+html.theme-dark .tab-panel code{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; }
+html.theme-dark .skill-tag{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; border-radius:8px !important; }
+
+/* advice 内联字面渐变按钮（投递简历）— !important 覆盖，不改 HTML */
+html.theme-dark a[style*="feb47b"], html.theme-dark a[style*="ff7e5f"]{
+  background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important;
+  color:#0b0e1f !important; border-radius:20px !important;
+}
+
+/* 方向卡 / 匹配卡 内联字面浅色 chip（#F7F6F2 / #FFF3E0 / #E8F5E9 / #FFF5F5 等）→ token 青 */
+html.theme-dark .dir-card span[style*="F7F6F2"],
+html.theme-dark .card div[style*="background:#F7F6F2"],
+html.theme-dark span[style*="#F7F6F2"],
+html.theme-dark .skill-tag[style*="#E8F5E9"],
+html.theme-dark span[style*="#FFF3E0"],
+html.theme-dark span[style*="#FFF5F5"]{
+  background:rgba(93,224,230,0.10) !important; color:var(--cyan) !important; border-radius:20px !important;
+}
+/* 阈值分布/权重小标签字面底色 → token 青 */
+html.theme-dark span[style*="#FFF5E6"], html.theme-dark span[style*="#E8F5E9"], html.theme-dark span[style*="#F7FAFC"], html.theme-dark span[style*="#EDF2F7"], html.theme-dark span[style*="#FFF3E0"]{
+  background:rgba(93,224,230,0.10) !important; color:var(--cyan) !important; border-radius:6px !important;
+}
+
+/* advice 匹配卡：内联字面进度条/标签色 → token（不改 HTML） */
+html.theme-dark div[style*="#E07B4C"], html.theme-dark div[style*="#F59E0B"]{ background:linear-gradient(135deg,var(--accent-from),var(--accent-to)) !important; color:#0b0e1f !important; }
+html.theme-dark div[style*="#38A169"]{ background:var(--cyan) !important; }
+html.theme-dark div[style*="#3182CE"], html.theme-dark div[style*="#805AD5"]{ background:var(--lavender) !important; }
+html.theme-dark div[style*="#D69E2E"]{ background:var(--gold) !important; }
+html.theme-dark div[style*="#718096"]{ background:var(--text-secondary) !important; }
+
+/* ml.html 进度条背景 / 表格边框 #EDEFE8 → 深蓝半透明，深色下可见 */
+html.theme-dark div[style*="#EDEFE8"],
+html.theme-dark tr[style*="#EDEFE8"],
+html.theme-dark th[style*="#EDEFE8"] {
+  background: rgba(100,120,200,0.12) !important;
+  border-color: rgba(100,120,200,0.2) !important;
+}
+/* ml.html 表格文字 #6F6D67 → 浅灰，提升对比度 */
+html.theme-dark th[style*="#6F6D67"],
+html.theme-dark td[style*="#6F6D67"] {
+  color: var(--text-secondary) !important;
+}
+/* ml.html 表格行边框 #F0EFE9 → 深色边框 */
+html.theme-dark tr[style*="#F0EFE9"] {
+  border-color: var(--border-card) !important;
+}
+
+/* ---------- 语义色切换器（仅深色下可见，固定右下角，不影响文档流） ---------- */
+html.theme-dark #accent-switcher{
+  position:fixed; right:18px; bottom:18px; z-index:2000;
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; border-radius:var(--radius-full);
+  background:rgba(22,28,62,0.82); backdrop-filter:blur(12px);
+  border:1px solid var(--border-card);
+  box-shadow:0 8px 32px rgba(0,0,0,0.35);
+}
+html.theme-dark #accent-switcher .lbl{ font-size:12px; color:var(--text-secondary); letter-spacing:.05em; }
+html.theme-dark #accent-switcher button{
+  width:20px; height:20px; border-radius:50%; border:2px solid transparent; cursor:pointer;
+  padding:0; transition:transform .2s ease, border-color .2s ease;
+}
+html.theme-dark #accent-switcher button:hover{ transform:scale(1.15); }
+html.theme-dark #accent-switcher button.active{ border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,0.25); }
+
+/* 切换风格按钮（两风格均可见，不依赖 token 变量，固定导航栏右侧） */
+.theme-toggle{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:'Noto Sans SC',sans-serif; font-weight:600; font-size:14px;
+  padding:7px 16px; border-radius:22px; cursor:pointer;
+  background:transparent; border:1.5px solid var(--line); color:var(--ink-soft);
+  transition:.2s ease; white-space:nowrap;
+}
+.theme-toggle:hover{ color:var(--ink); border-color:var(--ink); }
+html.theme-dark .theme-toggle{
+  border-color:var(--border-card); color:var(--text-secondary);
+}
+html.theme-dark .theme-toggle:hover{ color:#fff; border-color:var(--cyan); }
+
+/* ---------- 10. 响应式（保留原断点，不重排） ---------- */
+@media (max-width:800px){
+  html.theme-dark .card, html.theme-dark .well{ padding:24px 20px; }
+  html.theme-dark .home-feature-grid{ grid-template-columns:1fr; }
+  html.theme-dark .chart-layout{ flex-direction:column; }
+  html.theme-dark .chart-sidebar{ width:100%; position:static; }
+  html.theme-dark .ml-layout{ flex-direction:column; }
+  html.theme-dark .ml-sidebar{ width:100%; position:static; }
+}
+@media (max-width:640px){
+  html.theme-dark .home-feature-grid{ grid-template-columns:1fr; }
+  html.theme-dark .compare-grid{ grid-template-columns:1fr; }
+  html.theme-dark .compare-grid-3{ grid-template-columns:1fr; }
+}
+
+/* ---------- AI 弹窗（内联浅色 → 深色，不改 HTML） ---------- */
+html.theme-dark #ai_overlay{ background:rgba(8,10,28,0.6) !important; backdrop-filter:blur(4px) !important; }
+html.theme-dark #ai_panel{
+  background:rgba(22,28,62,0.96) !important;
+  border-color:var(--border-card) !important;
+  box-shadow:0 20px 60px rgba(0,0,0,.45) !important;
+}
+html.theme-dark #ai_panel button{ background:rgba(93,224,230,0.12) !important; color:var(--cyan) !important; }
+html.theme-dark #ai_panel button:hover{ background:rgba(93,224,230,0.22) !important; }
+html.theme-dark #ai_title{ color:#fff !important; -webkit-text-fill-color:#fff !important; background:none !important; }
+html.theme-dark #ai_content{ color:rgba(255,255,255,0.85) !important; }
+html.theme-dark #ai_content b{ color:var(--cyan) !important; }
+/* AI 弹窗内所有子元素强制覆盖内联颜色，确保加载/错误状态可见 */
+html.theme-dark #ai_content * { color: rgba(255,255,255,0.85) !important; }
+html.theme-dark #ai_content b,
+html.theme-dark #ai_content strong { color: var(--cyan) !important; }

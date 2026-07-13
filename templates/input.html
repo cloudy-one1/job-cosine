@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+/* ===== 首页窄版包裹 ===== */
+.home-wrap { max-width:780px; margin:0 auto; }
+
+/* ===== Hero 区域 ===== */
+.home-hero { text-align:center; padding:44px 0 16px; }
+.home-hero .stamp-wrap { margin:0 auto 18px; }
+.home-hero h1 { font-size:34px; letter-spacing:-.01em; line-height:1.25; }
+.home-hero .subtitle { color:var(--ink-soft); font-size:15px; max-width:500px; margin:6px auto 0; line-height:1.6; }
+
+/* ===== 查询卡片 ===== */
+.home-card { margin:32px 0 0 0; padding:32px 36px 28px; }
+
+/* ===== 城市级联选择器行 ===== */
+.city-row {
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:12px 14px; background:#fafafa; border:1px solid #ddd; border-radius:12px;
+}
+.city-row select {
+    font-size:15px; padding:10px 12px; border:1px solid #ccc; border-radius:10px;
+    background:#fff; cursor:pointer;
+}
+#provinceSelect { flex:1.1; min-width:115px; }
+#citySelect     { flex:1.4; min-width:135px; }
+.add-city-btn {
+    font-size:15px; font-weight:600; padding:10px 22px; border:none;
+    background:var(--accent,#4a7c59); color:#fff; border-radius:22px; cursor:pointer;
+    white-space:nowrap; transition:opacity .2s;
+}
+.add-city-btn:hover:not(:disabled) { opacity:.85; }
+
+/* 已选城市标签 */
+.tag-chip {
+    display:inline-flex; align-items:center;
+    background:linear-gradient(135deg,#e8f0e9,#d4e8d0);
+    color:#2a4a35; padding:7px 16px; border-radius:18px; font-size:15px; font-weight:500;
+    gap:8px; box-shadow:0 1px 3px rgba(0,0,0,.07);
+}
+.tag-chip .tag-remove { cursor:pointer; color:#999; font-size:16px; line-height:1; padding-left:2px; }
+.tag-chip .tag-remove:hover { color:#c33; }
+
+/* ===== 底部功能卡片网格 ===== */
+.home-feature-grid {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:16px;
+    margin-top:34px;
+}
+.home-feature-card {
+    background:var(--card); border:1px solid var(--line);
+    border-radius:16px; padding:26px 22px 22px;
+    text-decoration:none; color:var(--ink);
+    transition:.25s ease;
+    display:flex; flex-direction:column; gap:6px;
+    box-shadow:0 1px 4px rgba(0,0,0,.03);
+}
+.home-feature-card:hover {
+    transform:translateY(-5px);
+    box-shadow:0 10px 28px rgba(0,0,0,.09);
+    border-color:var(--accent);
+}
+.home-feature-card .fc-icon { font-size:30px; line-height:1; margin-bottom:2px; }
+.home-feature-card .fc-title {
+    font-size:17px; font-weight:700; font-family:'Noto Serif SC',serif; color:var(--ink);
+}
+.home-feature-card .fc-desc {
+    font-size:13px; color:var(--ink-soft); line-height:1.55;
+}
+.home-feature-card .fc-arrow {
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:600; color:var(--accent);
+    margin-top:4px; transition:.2s ease;
+}
+.home-feature-card:hover .fc-arrow { gap:10px; }
+
+@media (max-width:700px) {
+    .home-feature-grid { grid-template-columns:1fr; }
+    .home-card { padding:24px 20px 22px; }
+}
+</style>
+
+<!-- ===== Hero ===== -->
+<div class="home-wrap fade-up">
+    <div class="home-hero">
+
+        <p class="eyebrow">招聘市场数据分析</p>
+        <h1>招聘信息实时数据分析系统</h1>
+        <p class="subtitle">一站式查看岗位分布、薪资水平与技能需求，为你的求职决策提供数据支撑</p>
+    </div>
+
+    <!-- ===== 查询表单卡片 ===== -->
+    <div class="card home-card fade-up" data-no="查询与采集">
+        <form id="mainForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>岗位名称（支持关键词搜索，非精确匹配）</label>
+                <input type="text" class="form-control" name="kw" placeholder="python 开发工程师" autofocus>
+            </div>
+
+            <!-- 城市：省份→城市级联选择 -->
+            <div class="form-group">
+                <label>选择城市（可选，不选则全国范围搜索）</label>
+                <div class="city-row">
+                    <select id="provinceSelect">
+                        <option value="">← 选择省份</option>
+                    </select>
+                    <span style="color:#bbb; font-size:18px; user-select:none;">›</span>
+                    <select id="citySelect" disabled>
+                        <option value="">先选省份 →</option>
+                    </select>
+                    <button type="button" id="addCityBtn" disabled class="add-city-btn">＋ 添加城市</button>
+                </div>
+
+                <div id="selectedCitiesWrap" style="margin-top:10px; display:none;">
+                    <div style="font-size:14px; color:#999; margin-bottom:8px;">已选城市：</div>
+                    <div id="selectedCities" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                </div>
+                <input type="hidden" name="city" id="cityHidden">
+            </div>
+
+            <div style="display:flex; gap:14px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:170px;">
+                    <label>排序方式（仅"立即实时采集"生效）</label>
+                    <select class="form-control" name="sort_type" style="font-size:15px;">
+                        <option value="0">按相关性排序</option>
+                        <option value="1">最新发布</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1; min-width:170px;">
+                    <label>实时采集页数（仅"立即实时采集"生效，1~5）</label>
+                    <input type="number" class="form-control" name="pages" value="2" min="1" max="5" style="font-size:15px;">
+                </div>
+            </div>
+            {% if collect_token_required %}
+            <div class="form-group">
+                <label>采集口令（管理员已锁定此功能）</label>
+                <input type="password" class="form-control" name="token" placeholder="请输入采集口令" style="max-width:200px;">
+            </div>
+            {% endif %}
+            <div style="display:flex; gap:10px; margin-top:4px;">
+                <button type="submit" formaction="/list" formmethod="get"
+                        class="btn btn-default" style="flex:1; padding:12px; font-size:15px;">查询已有数据</button>
+                <button type="submit" formaction="/collect" formmethod="post"
+                        class="btn btn-info" style="flex:1; padding:12px; font-size:15px;">立即实时采集</button>
+            </div>
+            <p style="color:var(--ink-soft); font-size:13px; margin-top:10px; margin-bottom:0; line-height:1.5;">
+                查询已有数据：浏览已收录的岗位信息；实时采集：获取 51job 最新招聘数据（更新前会清空旧记录）。
+            </p>
+        </form>
+    </div>
+
+    <!-- ===== 功能入口卡片 ===== -->
+    <div class="home-feature-grid fade-up">
+        <a href="/chart/city" class="home-feature-card">
+            <div class="fc-icon">📊</div>
+            <div class="fc-title">图表分析</div>
+            <div class="fc-desc">城市分布、薪资区间、学历经验占比……多维度数据一图尽览</div>
+            <span class="fc-arrow">查看图表 →</span>
+        </a>
+        <a href="/ml" class="home-feature-card">
+            <div class="fc-icon">🎯</div>
+            <div class="fc-title">薪资洞察</div>
+            <div class="fc-desc">岗位智能聚类 + 多维度薪资分析，探索技能热力图、方向相似度与学历溢价</div>
+            <span class="fc-arrow">开始洞察 →</span>
+        </a>
+        <a href="/advice" class="home-feature-card">
+            <div class="fc-icon">💬</div>
+            <div class="fc-title">智能助手</div>
+            <div class="fc-desc">AI 解读数据趋势、对比不同城市岗位、分析技能需求热度</div>
+            <span class="fc-arrow">开始咨询 →</span>
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 静默预热：后台触发图表数据计算 + ML 模型训练，后续导航秒开
+(function preload(){
+    var url = '/api/warmup';
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon(url);
+    } else {
+        fetch(url, {method:'GET', keepalive:true}).catch(function(){});
+    }
+})();
+
+const cityMap = {{ city_map_json | safe }};
+const selected = []; // {city, code}
+
+const provSel  = document.getElementById('provinceSelect');
+const citySel  = document.getElementById('citySelect');
+const addBtn   = document.getElementById('addCityBtn');
+const selWrap  = document.getElementById('selectedCitiesWrap');
+const selectedDiv = document.getElementById('selectedCities');
+const hidden   = document.getElementById('cityHidden');
+
+// 初始化省份下拉
+const provs = Object.keys(cityMap).sort();
+provs.forEach(prov => {
+    const opt = document.createElement('option');
+    opt.value = prov;
+    opt.textContent = prov;
+    opt.style.fontSize = '15px';
+    provSel.appendChild(opt);
+});
+
+// 省份切换 → 更新城市下拉
+provSel.addEventListener('change', () => {
+    citySel.innerHTML = '';
+    addBtn.disabled = true;
+    const prov = provSel.value;
+    if (prov && cityMap[prov]) {
+        citySel.appendChild(new Option('请选择城市', ''));
+        cityMap[prov].forEach(([city, code]) => {
+            citySel.appendChild(new Option(city, code));
+        });
+        citySel.disabled = false;
+    } else {
+        citySel.appendChild(new Option('先选省份 →', ''));
+        citySel.disabled = true;
+    }
+});
+
+// 城市选中 → 启用添加按钮
+citySel.addEventListener('change', () => {
+    addBtn.disabled = !citySel.value;
+});
+
+// 添加城市到已选列表
+addBtn.addEventListener('click', () => {
+    const code = citySel.value;
+    const city = citySel.options[citySel.selectedIndex].text;
+    if (!code || selected.some(s => s.code === code)) {
+        citySel.value = '';
+        addBtn.disabled = true;
+        return;
+    }
+    selected.push({city, code});
+    renderTags();
+    citySel.value = '';
+    addBtn.disabled = true;
+});
+
+// 渲染标签
+function renderTags() {
+    if (selected.length === 0) {
+        selWrap.style.display = 'none';
+    } else {
+        selWrap.style.display = 'block';
+        selectedDiv.innerHTML = selected.map((s, i) =>
+            `<span class="tag-chip">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4a7c59" stroke-width="2.5" style="flex-shrink:0;">
+                    <path d="M12 22c-5 0-10-4-10-10S7 2 12 2s10 4 10 10-5 10-10 10z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                ${s.city}
+                <span class="tag-remove" onclick="removeCity(${i})">&times;</span>
+            </span>`
+        ).join('');
+    }
+    hidden.value = selected.map(s => s.city).join(',');
+}
+
+function removeCity(idx) { selected.splice(idx, 1); renderTags(); }
+</script>
+{% endblock %}

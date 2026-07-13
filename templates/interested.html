@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    /* 复用数据页圆角表格与行交互 */
+    .table { border-radius:12px; overflow:hidden; border-collapse:separate; border-spacing:0; }
+    .table th:first-child{ border-top-left-radius:12px; }
+    .table th:last-child{ border-top-right-radius:12px; }
+    .fav-row { transition: background-color .2s ease; }
+    .fav-row:hover { background-color:#eef2ff; }
+    .job-link {
+        color:var(--ink); text-decoration:none; font-weight:600;
+        transition:color .2s ease;
+    }
+    .job-link:hover { color:#2563eb; }
+    .salary-mono { font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--teal); }
+    .row-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .row-actions a { font-size:13px; color:#2563eb; text-decoration:none; }
+    .row-actions a:hover { text-decoration:underline; }
+    .mini-btn {
+        border:1.5px solid #2563eb; background:transparent; color:#2563eb;
+        border-radius:999px; padding:4px 12px; font-size:12px; font-weight:600;
+        cursor:pointer; transition:all .2s ease; font-family:'Noto Sans SC',sans-serif;
+    }
+    .mini-btn:hover { background:#2563eb; color:#fff; }
+    .mini-btn.interested { background:#2563eb; color:#fff; border-color:#2563eb; }
+    .empty-state {
+        text-align:center; padding:60px 20px; color:var(--ink-soft);
+    }
+    .empty-state .big { font-size:46px; margin-bottom:12px; }
+    .toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:18px; }
+</style>
+
+<p class="eyebrow">我的收藏</p>
+<h2 style="margin-bottom:6px;">我感兴趣的岗位</h2>
+<p style="margin:0 0 22px; color:var(--ink-soft);">
+    您收藏的岗位集中保存在此处（浏览器会话内），可直接用于「岗位匹配推荐」或「简历诊断」的精准比对。
+</p>
+
+{% if jobs %}
+<div class="toolbar">
+    <span class="mono" style="color:var(--ink-soft); font-size:14px;">共收藏 {{ jobs|length }} 个岗位</span>
+    <a href="/advice?tool=match" class="btn btn-primary" style="padding:10px 22px; font-size:14px;">→ 用于岗位匹配推荐</a>
+    <a href="/advice?tool=review" class="btn btn-outline" style="padding:10px 22px; font-size:14px;">→ 用于简历诊断</a>
+</div>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>岗位名称</th>
+            <th>城市</th>
+            <th>薪资（千/月，均值）</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for job in jobs %}
+        <tr class="fav-row" id="fav-row-{{ job.id }}">
+            <td><a class="job-link" href="{{ url_for('job_detail', job_id=job.id) }}">{{ job.title }}</a></td>
+            <td>{{ job.city }}</td>
+            <td class="salary-mono">{{ job.salary_k }}</td>
+            <td>
+                <div class="row-actions">
+                    <a href="{{ url_for('job_detail', job_id=job.id) }}">查看详情</a>
+                    <button type="button" class="mini-btn interested"
+                            onclick="toggleInterestRow({{ job.id }}, this)">
+                        <span class="interest-label">取消收藏</span>
+                    </button>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div class="empty-state">
+    <div class="big">📌</div>
+    <h3 style="margin-bottom:8px;">还没有收藏任何岗位</h3>
+    <p style="margin:0 0 18px;">在「数据展示」或「岗位详情」页点击「感兴趣」即可收藏到这里。</p>
+    <a href="/list" class="btn btn-primary" style="padding:10px 26px; font-size:14px;">去数据展示页浏览</a>
+</div>
+{% endif %}
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
+
+<script>
+function toggleInterestRow(jobId, btn) {
+    var token = document.getElementById('csrf-token').value;
+    fetch('/toggle_interest', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'job_id=' + encodeURIComponent(jobId)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (!d || d.error) return;
+        if (!d.interested) {
+            // 已取消收藏 → 移除该行
+            var row = document.getElementById('fav-row-' + jobId);
+            if (row) row.remove();
+            var badge = document.getElementById('interested-badge');
+            if (badge) {
+                badge.textContent = d.count;
+                if (d.count == 0) badge.style.display = 'none';
+            }
+            // 若列表已空 → 刷新页面以显示空状态
+            if (d.count == 0) location.reload();
+        }
+    })
+    .catch(function () {});
+}
+</script>
+
+{% endblock %}
