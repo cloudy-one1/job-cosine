@@ -1,10 +1,10 @@
 <div align="center">
 
-# job-cosine
+# job-crawler
 
 **招聘数据采集 · 统计分析 · 机器学习建模 · AI 求职建议，一条链路跑通。**
 
-[![CI](https://github.com/cloudy-one1/job-cosine/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudy-one1/job-cosine/actions/workflows/ci.yml)
+[![CI](https://github.com/cloudy-one1/job-crawler/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudy-one1/job-crawler/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
@@ -49,8 +49,8 @@
 ### 本地运行
 
 ```bash
-git clone https://github.com/cloudy-one1/job-cosine.git
-cd job-cosine
+git clone https://github.com/cloudy-one1/job-crawler.git
+cd job-crawler
 
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -92,7 +92,7 @@ make crawl       # 采集一次数据
 ## 目录结构
 
 ```
-job-cosine/
+job-crawler/
 ├── app.py                  # Flask 入口：路由、渲染、安全与缓存
 ├── config.py               # 配置：数据库路径与环境变量常量
 │
@@ -157,7 +157,7 @@ CI 在 Python 3.10 / 3.11 / 3.12 上自动运行，详见 [ci.yml](.github/workf
 - [ ] 前端构建流程与组件化
 - [ ] 多用户与结果分享
 
-欢迎在 [Issues](https://github.com/cloudy-one1/job-cosine/issues) 提出想法或认领任务。
+欢迎在 [Issues](https://github.com/cloudy-one1/job-crawler/issues) 提出想法或认领任务。
 
 ## 参与贡献
 

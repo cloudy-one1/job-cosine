@@ -49,4 +49,4 @@
 - 数据库 WAL 模式；URL 参数校验与 `url_for()` 编码，杜绝拼接注入
 - 前端异常信息脱敏，不泄露内部路径与堆栈
 
-[1.0.0]: https://github.com/cloudy-one1/job-cosine/releases/tag/v1.0.0
+[1.0.0]: https://github.com/cloudy-one1/job-crawler/releases/tag/v1.0.0

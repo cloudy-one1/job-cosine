@@ -1,12 +1,12 @@
 # 贡献指南
 
-感谢你愿意为 job-cosine 做出贡献。本文档说明如何参与开发、代码规范以及如何提交改动。
+感谢你愿意为 job-crawler 做出贡献。本文档说明如何参与开发、代码规范以及如何提交改动。
 
 ## 开发环境搭建
 
 ```bash
-git clone https://github.com/cloudy-one1/job-cosine.git
-cd job-cosine
+git clone https://github.com/cloudy-one1/job-crawler.git
+cd job-crawler
 
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate

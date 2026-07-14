@@ -1,5 +1,5 @@
 """
-job-cosine Web 服务入口。
+job-crawler Web 服务入口。
 
 职责:
 - 路由注册与页面渲染(Flask + Jinja2 模板)

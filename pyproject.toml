@@ -1,16 +1,16 @@
-# job-cosine —— 项目元数据与工具配置集中地
+# job-crawler —— 项目元数据与工具配置集中地
 #
 # 说明：本项目以「克隆后直接 python app.py」的方式运行（见 README 快速开始），
 # 不发布到 PyPI，因此这里只声明 PEP 621 元数据与 pytest 配置，不做打包配置。
 
 [project]
-name = "job-cosine"
+name = "job-crawler"
 version = "1.0.0"
 description = "招聘数据采集、统计分析与 AI 求职建议一体化平台"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "job-cosine contributors" }]
+authors = [{ name = "job-crawler contributors" }]
 keywords = [
     "job",
     "recruitment",
@@ -57,10 +57,10 @@ dependencies = [
 dev = ["pytest>=7.0", "pytest-cov>=4.0"]
 
 [project.urls]
-Homepage = "https://github.com/cloudy-one1/job-cosine"
-Repository = "https://github.com/cloudy-one1/job-cosine"
-Issues = "https://github.com/cloudy-one1/job-cosine/issues"
-Changelog = "https://github.com/cloudy-one1/job-cosine/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/cloudy-one1/job-crawler"
+Repository = "https://github.com/cloudy-one1/job-crawler"
+Issues = "https://github.com/cloudy-one1/job-crawler/issues"
+Changelog = "https://github.com/cloudy-one1/job-crawler/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
