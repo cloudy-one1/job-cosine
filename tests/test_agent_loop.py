@@ -5,7 +5,11 @@ v2 变更: 移除 ReAct 循环和 Critic 审计，改为预加载数据 + 单次
 测试用确定性假 LLM 验证 agent 预加载了 overview 数据并返回预期结果。
 """
 import json
+import pytest
 from agent.agent_core import run_agent
+
+# run_agent 预加载真实数据库概览,用共享 temp_db 夹具替代对本地 data.db 的依赖
+pytestmark = pytest.mark.usefixtures("temp_db")
 
 fake_output = (
     '## 📊 基于数据库分析（来自本地招聘数据）\n\n'

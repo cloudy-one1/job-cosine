@@ -98,8 +98,9 @@ class TestJobDetailPage:
 class TestDataListPageLinks:
     """测试数据列表页面的链接"""
 
+    @pytest.mark.usefixtures("temp_db")
     def test_list_page_contains_job_links(self, client):
-        """测试数据列表页面包含岗位详情链接"""
+        """测试数据列表页面包含岗位详情链接(需要库里有数据)。"""
         response = client.get('/list')
         assert response.status_code == 200
 

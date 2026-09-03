@@ -224,7 +224,9 @@ class TestAllRoutesSmoke:
         resp = client.get('/list')
         assert resp.status_code == 200
 
+    @pytest.mark.usefixtures("temp_db")
     def test_chart_page_loads(self, client):
+        """图表页在无数据时应友好降级,有数据时正常渲染(不 500)。"""
         resp = client.get('/chart')
         assert resp.status_code == 200
 
